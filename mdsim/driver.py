@@ -5,7 +5,7 @@ Created on Tue Jun 25 14:12:58 2019
 @author: Efren A. Serra
 """
 
-def run_mdsim():
+def RunMDSim():
     GetNameList()
     PrintNameList()
     SetParams()
@@ -17,4 +17,4 @@ def run_mdsim():
             moreCycles = False
 
 if __name__ == "__main__":
-    run_mdsim()
+    RunMDSim()
