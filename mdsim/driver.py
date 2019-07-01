@@ -16,13 +16,12 @@ def AccumProps(icode: int):
     """Accumulate thermodynamics properties.
     Parameters
     ----------
-    icount : int, 
-
+    icount : int,
     """
     if icode == 0:
-        _mdsim_globals['totEnergy'] = Prop()
-        _mdsim_globals['kinEnergy'] = Prop()
-        _mdsim_globals['pressure'] = Prop()
+        _mdsim_globals['totEnergy'].zero()
+        _mdsim_globals['kinEnergy'].zero()
+        _mdsim_globals['pressure'].zero()
     elif icode == 1:
         _mdsim_globals['totEnergy'].accum()
         _mdsim_globals['kinEnergy'].accum()
@@ -50,13 +49,13 @@ def ComputeForces():
 
     mol = _mdsim_globals['mol']
     nMol = _mdsim_globals['nMol']
+
     for n in range(nMol):
         mol[n].ra.x = 0.
         mol[n].ra.y = 0.
 
     _mdsim_globals['uSum'] = 0.
     _mdsim_globals['virSum'] = 0.
-
 
     dr = r_diff_vectorized(mol[1:], mol[:-1])
     drv = rv_diff_vectorized(mol[1:], mol[:-1])
@@ -125,13 +124,25 @@ def SetupJob():
     AccumProps(0)
 
 def SetParams():
+    density = _mdsim_globals['density']
+    initUcell = _mdsim_globals['initUcell']
+
     _mdsim_globals['rCut'] = math.pow(2.,1./6.)
+    _mdsim_globals['region'] = \
+    VecR(x=1. / math.sqrt(density) * initUcell[0], \
+         y=1. / math.sqrt(density) * initUcell[1])
+
     # the total number of molecules
     nMol = \
     _mdsim_globals['initUcell'][0] * _mdsim_globals['initUcell'][1]
     _mdsim_globals['nMol'] = nMol
     _mdsim_globals['velMag'] = \
     math.sqrt(NDIM * (1. - 1. / nMol) * _mdsim_globals['temperature'])
+
+    # initialize totEnery and kinEnergy properties
+    _mdsim_globals['kinEnergy'] = Prop()
+    _mdsim_globals['pressure']  = Prop()
+    _mdsim_globals['totEnergy'] = Prop()
 
 def SingleStep():
     _mdsim_globals['stepCount'] += 1
