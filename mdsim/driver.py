@@ -20,11 +20,15 @@ from _vfunctions import (
         rv_dot_vectorized, \
         rv_rand_vectorized, \
         rv_scale_vectorized, \
-        rv_sadd_vectorized, \
+        rv_sadd, \
         ra_diff_vectorized, \
         ra_zero_vectorized, \
         leapfrog_integrate_rv_vectorized, \
         leapfrog_integrate_r_vectorized,
+        vecr_div, \
+        vecr_dot, \
+        vecr_mul, \
+        vecr_sadd, \
         vecr_wrap, \
         )
 
@@ -46,7 +50,7 @@ def AccumProps(icode: int):
         stepAvg = _mdsim_globals['stepAvg']
         _mdsim_globals['totEnergy'].avg(stepAvg)
         _mdsim_globals['kinEnergy'].avg(stepAvg)
-        _mdsim_globals['pressure'].avg(stepAvg)  
+        _mdsim_globals['pressure'].avg(stepAvg)
 
 def AllocArrays():
     """
@@ -54,7 +58,7 @@ def AllocArrays():
     nMol = _mdsim_globals['nMol']
     # the molecules
     mol = \
-    np.array([Mol(VecR(), VecR(), VecR()) for i in range(nMol)], dtype=Mol)
+    np.array([Mol() for i in range(nMol)], dtype=Mol)
     _mdsim_globals['mol'] = mol[np.newaxis, :]
 
 def ApplyBoundaryCond():
@@ -63,7 +67,10 @@ def ApplyBoundaryCond():
     mol    = _mdsim_globals['mol']
     region = _mdsim_globals['region']
 
-    r_wrap_vectorized(mol, region)
+    for j,m in enumerate(mol[0,:]):
+        r_wrap(m, region)
+
+    #r_wrap_vectorized(mol, region)
 
 def ComputeForces():
     """Compute the MD forces by evaluating the LJ potential
@@ -86,10 +93,22 @@ def ComputeForces():
     _mdsim_globals['virSum'] = 0.
 
     # compute cross differences
+    _mdsim_globals['uSum'] = 0.
     for j1, a in enumerate(mol[0, :nMol-1]):
         for j2, b in enumerate(mol[0, j1+1:]):
             dr = r_diff(a, b)
             dr = vecr_wrap(dr, region)
+            rr = vecr_dot(dr, dr)
+            if rr < rrCut:
+                rri = 1. / rr
+                rri3 = rri ** 3
+                fcVal = 48. * rri3 * (rri3 - 0.5) * rri
+                a.ra.x += fcVal * dr.x
+                a.ra.y += fcVal * dr.y
+                b.ra.x -= fcVal * dr.x
+                b.ra.y -= fcVal * dr.y
+                _mdsim_globals['uSum'] += 4. * rri3 * (rri3 - 1.) + 1.
+                _mdsim_globals['virSum'] += fcVal * rr
 
 def EvalProps():
     """Evaluate thermodynamic properties
@@ -98,14 +117,14 @@ def EvalProps():
     mol  = _mdsim_globals['mol']
     nMol = _mdsim_globals['nMol']
     uSum = _mdsim_globals['uSum']
-    vSum = _mdsim_globals['vSum']
     virSum = _mdsim_globals['virSum']
 
-    vSum.zero()
+    vSum = VecR()
     vvSum : float = 0.
     rv_add_vectorized(vSum, mol)
-    vvSum = rv_dot_vectorized(mol, mol)
-    
+    _mdsim_globals['vSum'] = vSum
+
+    vvSum = np.sum(rv_dot_vectorized(mol, mol))
     _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol
     _mdsim_globals['totEnergy'].val = \
     _mdsim_globals['kinEnergy'].val + uSum / nMol
@@ -166,32 +185,53 @@ def PrintSummary(fd: object):
     fd : object, 
     """
     nMol = _mdsim_globals['nMol']
-    print("%5d %8.4f %7.4f %s %s %s"%(           \
-          _mdsim_globals['stepCount'],           \
-          _mdsim_globals['timeNow'],             \
-          _mdsim_globals['vSum'].vcsum() / nMol, \
-          _mdsim_globals['totEnergy'].est(),     \
-          _mdsim_globals['kinEnergy'].est(),     \
-          _mdsim_globals['pressure'].est()),     \
+    totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
+    kinEnergy='%7.4f %7.4f'%_mdsim_globals['kinEnergy'].est()
+    pressure='%7.4f'%_mdsim_globals['pressure'].est()[0]
+    print("%5d %8.4f %7.4f %s %s %s"%(\
+          _mdsim_globals['stepCount'],\
+          _mdsim_globals['timeNow'],  \
+          _mdsim_globals['vSum'].vcsum() / nMol,\
+          totEnergy, \
+          kinEnergy, \
+          pressure),  \
           file=fd)
 
 def InitCoords():
-    return
+    """Initialize the molecular coordinates
+    """
+    mol       = _mdsim_globals['mol']
+    region    = _mdsim_globals['region']
+    initUcell = _mdsim_globals['initUcell']
+
+    gap = vecr_div(region, initUcell)
+    for nx in range(initUcell.x):
+        for ny in range(initUcell.y):
+            c = VecR(nx + 0.5, ny + 0.5)
+            c = vecr_mul(c, gap)
+            mol[0, nx * initUcell.x + ny].r = vecr_sadd(c, -0.5, region)
 
 def InitVels():
+    """Initialize the molecular velocities
+    """
     mol    = _mdsim_globals['mol']
     nMol   = _mdsim_globals['nMol']
     velMag = _mdsim_globals['velMag']
 
     vSum = VecR(x=0., y=0.)
+
     rv_rand_vectorized(mol)
     rv_scale_vectorized(mol, velMag)
     rv_add_vectorized(vSum, mol)
+
     _mdsim_globals['vSum'] = vSum
     # scale molecular velocities
-    rv_sadd_vectorized(mol, - 1. / nMol, vSum)
+    for j,m in enumerate(mol[0, :]):
+        rv_sadd(m, -1. / nMol, vSum)
 
 def InitAccels():
+    """Initialize the molecular accelerations
+    """
     mol = _mdsim_globals['mol']
     ra_zero_vectorized(mol)
 
@@ -211,11 +251,11 @@ def SetParams():
 
     _mdsim_globals['rCut'] = math.pow(2.,1./6.)
     _mdsim_globals['region'] = \
-    VecR(x=1. / math.sqrt(density) * initUcell[0], \
-         y=1. / math.sqrt(density) * initUcell[1])
+    VecR(x=1. / math.sqrt(density) * initUcell.x, \
+         y=1. / math.sqrt(density) * initUcell.y)
 
     # the total number of molecules
-    nMol = initUcell[0] * initUcell[1]
+    nMol = initUcell.x * initUcell.y
     _mdsim_globals['nMol'] = nMol
     _mdsim_globals['velMag'] = \
     math.sqrt(NDIM * (1. - 1. / nMol) * _mdsim_globals['temperature'])

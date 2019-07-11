@@ -6,6 +6,7 @@ Created on Tue Jun 25 14:31:17 2019
 
 @author: Efren A. Serra
 """
+from _types import VecI
 # Disallow reloading this module so as to prevent re-initializing these global
 # variables
 if '_is_loaded' in globals():
@@ -20,7 +21,7 @@ _mdsim_globals = {}
 _namelist_converter = {
     'deltaT'      : lambda x: float(x),
     'density'     : lambda x: float(x),
-    'initUcell'   : lambda x,y: [int(x),int(y)],
+    'initUcell'   : lambda x,y: VecI(int(x),int(y)),
     'limitVel'    : lambda x: int(x),
     'nebrTabFac'  : lambda x: int(x),
     'randSeed'    : lambda x: int(x),

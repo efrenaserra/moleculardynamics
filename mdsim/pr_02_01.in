@@ -3,5 +3,5 @@ density           0.8
 initUcell         20 20
 stepAvg           100
 stepEquil         0
-stepLimit         1000
+stepLimit         10000
 temperature       1.

@@ -33,7 +33,7 @@ class Prop(object):
         """
         self.sum += self.val
         self.sum2 += math.sqrt(self.val)
-    
+
     def zero(self):
         """
         Parameters
@@ -54,7 +54,7 @@ class Prop(object):
         """
         Parameters:
         """
-        return "%7.4f %7.4f"%(self.sum, self.sum2)
+        return self.sum, self.sum2
 
     def __repr__(self):
         """
@@ -92,7 +92,7 @@ class VecR(object):
         return "<x: %f, y: %f>"%(self.x,self.y)
 
 class Mol(object):
-    def __init__(self, r: VecR, rv: VecR, ra: VecR):
+    def __init__(self, r: VecR=None, rv: VecR=None, ra: VecR=None):
         self.r  = r
         self.rv = rv
         self.ra = ra
