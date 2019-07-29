@@ -10,21 +10,19 @@ from _globals import NDIM, _mdsim_globals, _namelist_converter
 from _types   import (
         Mol, Prop, VecR
         )
+
+from _functions import (
+        leapfrog_update_coordinates, \
+        leapfrog_update_velocities, \
+        )
+
 from _vfunctions import (
-        r_diff, \
-        r_diff_vectorized, \
-        r_wrap, \
-        r_wrap_vectorized, \
-        rv_add_vectorized, \
-        rv_diff_vectorized, \
-        rv_dot_vectorized, \
-        rv_rand_vectorized, \
-        rv_scale_vectorized, \
+        rv_add, \
+        rv_dot, \
+        rv_rand, \
+        rv_scale, \
         rv_sadd, \
-        ra_diff_vectorized, \
-        ra_zero_vectorized, \
-        leapfrog_integrate_rv_vectorized, \
-        leapfrog_integrate_r_vectorized,
+        ra_zero, \
         vecr_div, \
         vecr_dot, \
         vecr_mul, \
@@ -53,7 +51,7 @@ def AccumProps(icode: int):
         _mdsim_globals['pressure'].avg(stepAvg)
 
 def AllocArrays():
-    """
+    """Allocate molecular array.
     """
     nMol = _mdsim_globals['nMol']
     # the molecules
@@ -62,51 +60,55 @@ def AllocArrays():
     _mdsim_globals['mol'] = mol[np.newaxis, :]
 
 def ApplyBoundaryCond():
-    """
+    """Apply periodic boundary conditions.
     """
     mol    = _mdsim_globals['mol']
     region = _mdsim_globals['region']
 
-    for j,m in enumerate(mol[0,:]):
-        r_wrap(m, region)
-
-    #r_wrap_vectorized(mol, region)
+    for i, m in enumerate(mol[0,:]):
+        m.r_wrap(region)
 
 def ComputeForces():
     """Compute the MD forces by evaluating the LJ potential
     """
+    j1 : int = 0
+    j2 : int = 0
     fcVal : float = 0.
-    rr : float    = 0.
+    rr : np.float64 = 0.
     rrCut : float = 0.
     rri : float   = 0.
     rri3 : float  = 0.
-    j1 : int = 0
-    j2 : int = 0
 
     mol    = _mdsim_globals['mol']
     nMol   = _mdsim_globals['nMol']
     region = _mdsim_globals['region']
     rrCut  = math.sqrt(_mdsim_globals['rCut'])
 
-    ra_zero_vectorized(mol)
+    for m in mol[0,:]:
+        m.ra_zero()
+
     _mdsim_globals['uSum'] = 0.
     _mdsim_globals['virSum'] = 0.
 
     # compute cross differences
     _mdsim_globals['uSum'] = 0.
-    for j1, a in enumerate(mol[0, :nMol-1]):
-        for j2, b in enumerate(mol[0, j1+1:]):
-            dr = r_diff(a, b)
+    for j1 in range(nMol-1):
+        a = mol[0, j1]
+        for j2 in range(j1+1, nMol):
+            b = mol[0, j2]
+            dr = a.r_diff(b)
             dr = vecr_wrap(dr, region)
             rr = vecr_dot(dr, dr)
             if rr < rrCut:
                 rri = 1. / rr
                 rri3 = rri ** 3
-                fcVal = 48. * rri3 * (rri3 - 0.5) * rri
+                fcVal = 48.0 * rri3 * (rri3 - 0.5) * rri
+                # molecule at: j1
                 a.ra.x += fcVal * dr.x
                 a.ra.y += fcVal * dr.y
-                b.ra.x -= fcVal * dr.x
-                b.ra.y -= fcVal * dr.y
+                # molecule at: j2
+                b.ra.x += -1.0 * fcVal * dr.x
+                b.ra.y += -1.0 * fcVal * dr.y
                 _mdsim_globals['uSum'] += 4. * rri3 * (rri3 - 1.) + 1.
                 _mdsim_globals['virSum'] += fcVal * rr
 
@@ -121,10 +123,11 @@ def EvalProps():
 
     vSum = VecR()
     vvSum : float = 0.
-    rv_add_vectorized(vSum, mol)
-    _mdsim_globals['vSum'] = vSum
+    for m in mol[0, :]:
+        rv_add(vSum, m)
+        vvSum += rv_dot(m, m)
 
-    vvSum = np.sum(rv_dot_vectorized(mol, mol))
+    _mdsim_globals['vSum'] = vSum
     _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol
     _mdsim_globals['totEnergy'].val = \
     _mdsim_globals['kinEnergy'].val + uSum / nMol
@@ -162,13 +165,16 @@ def LeapfrogStep(part: int):
     mol            = _mdsim_globals['mol']
 
     if part == 1:
-        # integrate velocities
-        leapfrog_integrate_rv_vectorized(mol, 0.5 * deltaT)
-        # integrate coordinates
-        leapfrog_integrate_r_vectorized(mol, deltaT)
+        for i, m in enumerate(mol[0, :]):
+            # integrate velocities
+            m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
+
+            # integrate coordinates
+            m.update_coordinates(leapfrog_update_coordinates, deltaT)
     else:
-        # integrate velocities
-        leapfrog_integrate_rv_vectorized(mol, 0.5 * deltaT)
+        for i, m in enumerate(mol[0, :]):
+            # integrate velocities
+            m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
 
 def PrintNameList(fd: object):
     """
@@ -200,16 +206,17 @@ def PrintSummary(fd: object):
 def InitCoords():
     """Initialize the molecular coordinates
     """
-    mol       = _mdsim_globals['mol']
-    region    = _mdsim_globals['region']
+    mol = _mdsim_globals['mol']
+    region = _mdsim_globals['region']
     initUcell = _mdsim_globals['initUcell']
 
     gap = vecr_div(region, initUcell)
     for nx in range(initUcell.x):
         for ny in range(initUcell.y):
-            c = VecR(nx + 0.5, ny + 0.5)
+            c = VecR(x=nx + 0.5, y=ny + 0.5)
             c = vecr_mul(c, gap)
-            mol[0, nx * initUcell.x + ny].r = vecr_sadd(c, -0.5, region)
+            c = vecr_sadd(c, -0.5, region)
+            mol[0, nx * initUcell.x + ny].r = c
 
 def InitVels():
     """Initialize the molecular velocities
@@ -219,21 +226,24 @@ def InitVels():
     velMag = _mdsim_globals['velMag']
 
     vSum = VecR(x=0., y=0.)
-
-    rv_rand_vectorized(mol)
-    rv_scale_vectorized(mol, velMag)
-    rv_add_vectorized(vSum, mol)
+    for m in mol[0, :]:
+        m.rv = VecR()
+        rv_rand(m)
+        rv_scale(m, velMag)
+        rv_add(vSum, m)
 
     _mdsim_globals['vSum'] = vSum
     # scale molecular velocities
-    for j,m in enumerate(mol[0, :]):
+    for m in mol[0, :]:
         rv_sadd(m, -1. / nMol, vSum)
 
 def InitAccels():
     """Initialize the molecular accelerations
     """
     mol = _mdsim_globals['mol']
-    ra_zero_vectorized(mol)
+    for m in mol[0, :]:
+        m.ra = VecR()
+        ra_zero(m)
 
 def SetupJob():
     """Setup global variables prior to simulation.

@@ -6,20 +6,14 @@ Created on Mon Jul  1 10:53:02 2019
 """
 
 import math, numpy as np, random
-import _types
 from _types import VecR, Mol
 
 __ALL__ = [
-        'r_diff_vectorized',
-        'rv_add_vectorized',
-        'rv_diff_vectorized',
-        'rv_dot_vectorized',
-        'rv_rand_vectorized',
-        'rv_scale_vectorized',
-        'rv_sadd_vectorized',
-        'ra_diff_vectorized',
-        'leapfrog_integrate_rv_vectorized',
-        'leapfrog_integrate_r_vectorized',
+        'r_diff',
+        'rv_add',
+        'rv_rand',
+        'rv_scale',
+        'rv_sadd',
         'vecr_div',
         'vecr_dot',
         'vecr_mul',
@@ -27,14 +21,12 @@ __ALL__ = [
         'vecr_wrap',
         ]
 
-def r_diff(a, b):
-    """Return molecular position difference.
+def r_diff(a: Mol, b: Mol):
+    """Return molecular relative vector difference.
     """
     return VecR(a.r.x - b.r.x, a.r.y - b.r.y)
 
-r_diff_vectorized = np.vectorize(r_diff)
-
-def r_wrap(m,region):
+def r_wrap(m: Mol, region: VecR):
     """
     Parameters
     ----------
@@ -53,9 +45,7 @@ def r_wrap(m,region):
     elif m.r.y < -0.5 * region.y:
         m.r.y += region.y
 
-r_wrap_vectorized = np.vectorize(r_wrap)
-
-def vecr_sadd(a, s, v):
+def vecr_sadd(a: VecR, s: float, v: VecR):
     """Scale molecular velocity components.
     """
     a.x += (s * v.x)
@@ -63,7 +53,7 @@ def vecr_sadd(a, s, v):
 
     return a
 
-def vecr_dot(a,b):
+def vecr_dot(a: VecR, b: VecR):
     """Divide two VecR objects component-wise.
     Parameters
     ----------
@@ -72,7 +62,7 @@ def vecr_dot(a,b):
     """
     return (a.x * b.x + a.y * b.y)
 
-def vecr_div(a,b):
+def vecr_div(a: VecR, b: VecR):
     """Divide two VecR objects component-wise.
     Parameters
     ----------
@@ -81,7 +71,7 @@ def vecr_div(a,b):
     """
     return VecR(a.x / b.x, a.y / b.y)
 
-def vecr_mul(a,b):
+def vecr_mul(a: VecR, b: VecR):
     """Multiply two VecR objects component-wise.
     Parameters
     ----------
@@ -116,8 +106,6 @@ def rv_diff(a,b):
     """
     return VecR(a.rv.x - b.rv.x, a.rv.y - b.rv.y)
 
-rv_diff_vectorized = np.vectorize(rv_diff)
-
 def ra_diff(a,b):
     """Return molecular acceleration difference.
     """
@@ -130,7 +118,8 @@ def rv_rand(m):
     m : Mol, the molecular object
     """
     s : float = 2. * math.pi * random.random()
-    m.rv = VecR(math.cos(s), math.sin(s))
+    m.rv.x = math.cos(s)
+    m.rv.y = math.sin(s)
 
 def rv_scale(m, s):
     """Set molecular velocity components.
@@ -144,14 +133,10 @@ def rv_add(v, m):
     v.x += m.rv.x
     v.y += m.rv.y
 
-rv_add_vectorized  = np.vectorize(rv_add)
-
 def rv_dot(a, b):
     """Accumulate molecular velocity components.
     """
     return (a.rv.x * b.rv.x + a.rv.y * b.rv.y)
-
-rv_dot_vectorized   = np.vectorize(rv_dot)
 
 def rv_sadd(m, s, v):
     """Scale molecular velocity components.
@@ -159,27 +144,8 @@ def rv_sadd(m, s, v):
     m.rv.x += (s * v.x)
     m.rv.y += (s * v.y)
 
-rv_sadd_vectorized  = np.vectorize(rv_sadd)
-
 def ra_zero(m):
     """Zero molecular acceleration components.
     """
-    m.ra = VecR()
-
-def leapfrog_integrate_rv(m, s):
-        m.rv.x += (s * m.ra.x)
-        m.rv.y += (s * m.ra.y)
-leapfrog_integrate_rv_vectorized = np.vectorize(leapfrog_integrate_rv)
-
-def leapfrog_integrate_r(m, s):
-        m.r.x += (s * m.rv.x)
-        m.r.y += (s * m.rv.y)
-leapfrog_integrate_r_vectorized = np.vectorize(leapfrog_integrate_r)
-
-
-rv_rand_vectorized  = np.vectorize(rv_rand)
-rv_scale_vectorized = np.vectorize(rv_scale)
-
-ra_diff_vectorized = np.vectorize(ra_diff, otypes=[VecR],\
-                                 signature='(),()->()')
-ra_zero_vectorized = np.vectorize(ra_zero)
+    m.ra.x = 0.0
+    m.ra.y = 0.0

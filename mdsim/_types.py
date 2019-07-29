@@ -45,11 +45,11 @@ class Prop(object):
         """
         Parameters
         ----------
-            n    :
+            n:
         """
         self.sum /= n
-        self.sum2 = math.sqrt(max([self.sum2 / n - math.sqrt(self.sum), 0.]))
-    
+        self.sum2 = math.sqrt(max([self.sum2 /  n - (self.sum * self.sum), 0.]))
+
     def est(self):
         """
         Parameters:
@@ -70,23 +70,29 @@ class VecI(object):
     def __repr__(self):
         return "<x: %d, y: %d>"%(self.x,self.y)
 
+    def __sub__(self, other):
+        """Rerturn relative vector difference
+        """
+        return VecI((self.x - other.x), (self.y - other.y))
+
 class VecR(object):
     def __init__(self, x : float=0., y : float=0.):
         self.x = x
         self.y = y
 
     def __sub__(self, other):
+        """Rerturn relative vector difference.
+        """
         return VecR((self.x - other.x), (self.y - other.y))
 
     def vcsum(self):
         return self.x + self.y
 
     def zero(self):
+        """Zero the vector components.
         """
-        Parameters
-        ----------
-        """
-        self.x = self.y = 0.
+        self.x = 0.
+        self.y = 0.
 
     def __repr__(self):
         return "<x: %f, y: %f>"%(self.x,self.y)
@@ -100,5 +106,38 @@ class Mol(object):
     def __repr__(self):
         return "<r: %s, rv: %s, ra: %s>"%(self.r,self.rv,self.ra)
 
-    def __sub__(self, other):
-        return VecR((self.r.x - other.r.x), (self.r.y - other.r.y))
+    def r_diff(self, other):
+        """Rerturn molecule's relative vector difference.
+        """
+        return self.r - other.r
+
+    def r_wrap(self, region):
+        """Rerturn molecule's relative vector difference.
+        Parameters
+        ----------
+        region : VecR, 
+        """
+        # wrap the x-coordinate
+        if self.r.x >= 0.5 * region.x:
+            self.r.x -= region.x
+        elif self.r.x < -0.5 * region.x:
+            self.r.x += region.x
+
+        # wrap the y-coordinate
+        if self.r.y >= 0.5 * region.y:
+            self.r.y -= region.y
+        elif self.r.y < -0.5 * region.y:
+            self.r.y += region.y
+
+    def ra_zero(self):
+        self.ra.zero()
+
+    def update_coordinates(self, integration_scheme, *args):
+        """Integrate the coordinates using scheme.
+        """
+        integration_scheme(self.r, *args, self.rv)
+
+    def update_velocities(self, integration_scheme, *args):
+        """Integrate the velocities using Leapfrog scheme.
+        """
+        integration_scheme(self.rv, *args, self.ra)
