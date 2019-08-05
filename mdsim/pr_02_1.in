@@ -1,7 +1,13 @@
 deltaT            0.005
 density           0.8
 initUcell         20 20
+limitVel          4
+rangeVel          3.
 stepAvg           100
 stepEquil         0
 stepLimit         10000
+sizeHistVel       50
+stepAvg           100
+stepEquil         0
+stepVel           5
 temperature       1.

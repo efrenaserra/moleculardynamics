@@ -5,6 +5,7 @@
 """
 
 import math, numpy as np, re, sys
+import matplotlib.pyplot as plt
 
 from _globals import NDIM, _mdsim_globals, _namelist_converter
 from _types   import (
@@ -12,22 +13,23 @@ from _types   import (
         )
 
 from _functions import (
-        leapfrog_update_coordinates, \
+        leapfrog_update_coordinates,\
         leapfrog_update_velocities, \
         )
 
 from _vfunctions import (
-        rv_add, \
-        rv_dot, \
-        rv_rand, \
+        ra_sadd,  \
+        ra_zero,  \
+        rv_add,   \
+        rv_dot,   \
+        rv_rand,  \
+        rv_sadd,  \
         rv_scale, \
-        rv_sadd, \
-        ra_zero, \
         vecr_div, \
         vecr_dot, \
         vecr_mul, \
-        vecr_sadd, \
-        vecr_wrap, \
+        vecr_sadd,\
+        vecr_wrap,\
         )
 
 def AccumProps(icode: int):
@@ -54,10 +56,16 @@ def AllocArrays():
     """Allocate molecular array.
     """
     nMol = _mdsim_globals['nMol']
-    # the molecules
+    sizeHistVel = _mdsim_globals['sizeHistVel']
+    # The molecules
     mol = \
     np.array([Mol() for i in range(nMol)], dtype=Mol)
-    _mdsim_globals['mol'] = mol[np.newaxis, :]
+    _mdsim_globals['mol'] = mol
+
+    # The velocity histogram
+    histVel = \
+    np.array([0.0 for i in range(sizeHistVel)], dtype=float)
+    _mdsim_globals['histVel'] = histVel
 
 def ApplyBoundaryCond():
     """Apply periodic boundary conditions.
@@ -65,7 +73,7 @@ def ApplyBoundaryCond():
     mol    = _mdsim_globals['mol']
     region = _mdsim_globals['region']
 
-    for i, m in enumerate(mol[0,:]):
+    for i, m in enumerate(mol):
         m.r_wrap(region)
 
 def ComputeForces():
@@ -82,20 +90,20 @@ def ComputeForces():
     mol    = _mdsim_globals['mol']
     nMol   = _mdsim_globals['nMol']
     region = _mdsim_globals['region']
-    rrCut  = math.sqrt(_mdsim_globals['rCut'])
+    rrCut  = _mdsim_globals['rCut'] * _mdsim_globals['rCut']
 
-    for m in mol[0,:]:
+    for m in mol:
         m.ra_zero()
 
     _mdsim_globals['uSum'] = 0.
     _mdsim_globals['virSum'] = 0.
 
-    # compute cross differences
+    # Compute all-pairs interactions
     _mdsim_globals['uSum'] = 0.
     for j1 in range(nMol-1):
-        a = mol[0, j1]
+        a = mol[j1]
         for j2 in range(j1+1, nMol):
-            b = mol[0, j2]
+            b = mol[j2]
             dr = a.r_diff(b)
             dr = vecr_wrap(dr, region)
             rr = vecr_dot(dr, dr)
@@ -103,27 +111,25 @@ def ComputeForces():
                 rri = 1. / rr
                 rri3 = rri ** 3
                 fcVal = 48.0 * rri3 * (rri3 - 0.5) * rri
-                # molecule at: j1
-                a.ra.x += fcVal * dr.x
-                a.ra.y += fcVal * dr.y
-                # molecule at: j2
-                b.ra.x += -1.0 * fcVal * dr.x
-                b.ra.y += -1.0 * fcVal * dr.y
+                # Molecule at: j1
+                ra_sadd(a, fcVal, dr)
+                # Molecule at: j2
+                ra_sadd(b, -fcVal, dr)
                 _mdsim_globals['uSum'] += 4. * rri3 * (rri3 - 1.) + 1.
                 _mdsim_globals['virSum'] += fcVal * rr
 
 def EvalProps():
     """Evaluate thermodynamic properties
     """
-    density  = _mdsim_globals['density']
-    mol  = _mdsim_globals['mol']
-    nMol = _mdsim_globals['nMol']
-    uSum = _mdsim_globals['uSum']
+    density= _mdsim_globals['density']
+    mol    = _mdsim_globals['mol']
+    nMol   = _mdsim_globals['nMol']
+    uSum   = _mdsim_globals['uSum']
     virSum = _mdsim_globals['virSum']
 
     vSum = VecR()
     vvSum : float = 0.
-    for m in mol[0, :]:
+    for m in mol:
         rv_add(vSum, m)
         vvSum += rv_dot(m, m)
 
@@ -132,6 +138,32 @@ def EvalProps():
     _mdsim_globals['totEnergy'].val = \
     _mdsim_globals['kinEnergy'].val + uSum / nMol
     _mdsim_globals['pressure'].val = density * (vvSum + virSum) / (nMol * NDIM)
+
+def EvalVelDist():
+    j : int = 0
+    deltaV : float = 0.0
+    histSum : float = 0.0
+
+    histVel     = _mdsim_globals['histVel']
+    mol         = _mdsim_globals['mol']
+    rangeVel    = _mdsim_globals['rangeVel']
+    sizeHistVel = _mdsim_globals['sizeHistVel']
+
+    deltaV = rangeVel / sizeHistVel
+    for m in mol:
+        j =  int(math.sqrt(rv_dot(m,m)) / deltaV)
+        histVel[min([j, sizeHistVel - 1])] += 1
+
+    _mdsim_globals['countVel'] += 1
+    if _mdsim_globals['countVel'] == _mdsim_globals['limitVel']:
+        histSum = np.sum(histVel)
+        histVel /= histSum
+        _mdsim_globals['hFucnction'] = 0.0
+        for j in range(sizeHistVel):
+            if histVel[j] > 0.0:
+                _mdsim_globals['hFunction'] += histVel[j] * math.log(histVel[j] / ((j+0.5) * deltaV))
+        PrintVelDist(sys.stdout)
+        _mdsim_globals['countVel'] = 0
 
 def GetNameList(fd: str):
     """
@@ -147,7 +179,7 @@ def GetNameList(fd: str):
                 k = 'initUcell'
                 line = line[len(k):]
                 (nx,ny) = line.split()
-                # matrix of molecular unit cells
+                # Matrix of molecular unit cells
                 _mdsim_globals[k] = \
                 _namelist_converter[k](nx,ny)
             else:
@@ -165,15 +197,15 @@ def LeapfrogStep(part: int):
     mol            = _mdsim_globals['mol']
 
     if part == 1:
-        for i, m in enumerate(mol[0, :]):
-            # integrate velocities
+        for i, m in enumerate(mol):
+            # Integrate velocities
             m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
 
-            # integrate coordinates
+            # Integrate coordinates
             m.update_coordinates(leapfrog_update_coordinates, deltaT)
     else:
-        for i, m in enumerate(mol[0, :]):
-            # integrate velocities
+        for i, m in enumerate(mol):
+            # Integrate velocities
             m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
 
 def PrintNameList(fd: object):
@@ -203,11 +235,32 @@ def PrintSummary(fd: object):
           pressure),  \
           file=fd)
 
+def PrintVelDist(fd: object):
+    """
+    Parameters
+    ----------
+    fd : object, 
+    """
+    histVel     = _mdsim_globals['histVel']
+    rangeVel    = _mdsim_globals['rangeVel']
+    sizeHistVel = _mdsim_globals['sizeHistVel']
+
+#    print("vdist (%.3f)"%(_mdsim_globals['timeNow']), file=fd)
+    bins = []
+    for n in range(sizeHistVel):
+        vBin = (n + 0.5) * rangeVel / sizeHistVel
+        bins.append(vBin)
+#        print("%8.3f %8.3f"%(vBin, histVel[n]), file=fd)
+    print("hfun: (%8.3f %8.3f)"%(_mdsim_globals['timeNow'],_mdsim_globals['hFunction']), file=fd)
+    plt.scatter(bins, histVel, marker='+')
+    plt.ylim(0.0)
+    plt.show()
+
 def InitCoords():
     """Initialize the molecular coordinates
     """
-    mol = _mdsim_globals['mol']
-    region = _mdsim_globals['region']
+    mol       = _mdsim_globals['mol']
+    region    = _mdsim_globals['region']
     initUcell = _mdsim_globals['initUcell']
 
     gap = vecr_div(region, initUcell)
@@ -216,7 +269,7 @@ def InitCoords():
             c = VecR(x=nx + 0.5, y=ny + 0.5)
             c = vecr_mul(c, gap)
             c = vecr_sadd(c, -0.5, region)
-            mol[0, nx * initUcell.x + ny].r = c
+            mol[nx * initUcell.x + ny].r = c
 
 def InitVels():
     """Initialize the molecular velocities
@@ -226,22 +279,22 @@ def InitVels():
     velMag = _mdsim_globals['velMag']
 
     vSum = VecR(x=0., y=0.)
-    for m in mol[0, :]:
+    for m in mol:
         m.rv = VecR()
         rv_rand(m)
         rv_scale(m, velMag)
         rv_add(vSum, m)
 
     _mdsim_globals['vSum'] = vSum
-    # scale molecular velocities
-    for m in mol[0, :]:
+    # Scale molecular velocities
+    for m in mol:
         rv_sadd(m, -1. / nMol, vSum)
 
 def InitAccels():
     """Initialize the molecular accelerations
     """
     mol = _mdsim_globals['mol']
-    for m in mol[0, :]:
+    for m in mol:
         m.ra = VecR()
         ra_zero(m)
 
@@ -254,6 +307,8 @@ def SetupJob():
     InitVels()
     InitAccels()
     AccumProps(0)
+    _mdsim_globals['countVel'] = 0
+    _mdsim_globals['hFunction'] = 0.0
 
 def SetParams():
     density = _mdsim_globals['density']
@@ -264,13 +319,13 @@ def SetParams():
     VecR(x=1. / math.sqrt(density) * initUcell.x, \
          y=1. / math.sqrt(density) * initUcell.y)
 
-    # the total number of molecules
+    # The total number of molecules
     nMol = initUcell.x * initUcell.y
     _mdsim_globals['nMol'] = nMol
     _mdsim_globals['velMag'] = \
     math.sqrt(NDIM * (1. - 1. / nMol) * _mdsim_globals['temperature'])
 
-    # initialize kinEnery, pressure and totEnergy properties
+    # Initialize kinEnery, pressure and totEnergy properties
     _mdsim_globals['kinEnergy'] = Prop()
     _mdsim_globals['pressure']  = Prop()
     _mdsim_globals['totEnergy'] = Prop()
@@ -279,12 +334,16 @@ def SingleStep():
     _mdsim_globals['stepCount'] += 1
     _mdsim_globals['timeNow'] = \
     _mdsim_globals['stepCount'] * _mdsim_globals['deltaT']
+
     LeapfrogStep(1)
     ApplyBoundaryCond()
     ComputeForces()
     LeapfrogStep(2)
     EvalProps()
     AccumProps(1)
+    if _mdsim_globals['stepCount'] >= _mdsim_globals['stepEquil'] and \
+    (_mdsim_globals['stepCount'] - _mdsim_globals['stepEquil']) % _mdsim_globals['stepVel'] == 0:
+        EvalVelDist()
     if _mdsim_globals['stepCount'] % _mdsim_globals['stepAvg'] == 0:
         AccumProps(2)
         PrintSummary(sys.stdout)
@@ -302,4 +361,4 @@ def RunMDSim(argv: list):
             moreCycles = False
 
 if __name__ == "__main__":
-    RunMDSim(['driver.py', 'pr_02_01.in'])
+    RunMDSim(['driver.py', 'pr_02_1.in'])

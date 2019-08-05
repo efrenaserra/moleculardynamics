@@ -10,10 +10,11 @@ from _types import VecR, Mol
 
 __ALL__ = [
         'r_diff',
+        'ra_sadd',
         'rv_add',
         'rv_rand',
-        'rv_scale',
         'rv_sadd',
+        'rv_scale',
         'vecr_div',
         'vecr_dot',
         'vecr_mul',
@@ -143,6 +144,12 @@ def rv_sadd(m, s, v):
     """
     m.rv.x += (s * v.x)
     m.rv.y += (s * v.y)
+
+def ra_sadd(m, s, v):
+    """Scale molecular acceleration components.
+    """
+    m.ra.x += (s * v.x)
+    m.ra.y += (s * v.y)
 
 def ra_zero(m):
     """Zero molecular acceleration components.

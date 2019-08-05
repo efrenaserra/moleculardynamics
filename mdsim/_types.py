@@ -14,7 +14,7 @@ __ALL__ = [
         ]
 
 class Prop(object):
-    def __init__(self):
+    def __init__(self, val: float = 0.0, sum: float = 0.0, sum2: float = 0.0):
         """
         Parameters
         ----------
@@ -22,9 +22,9 @@ class Prop(object):
             sum  :
             sum2 : 
         """
-        self.val : float = 0.
-        self.sum : float = 0.
-        self.sum2: float = 0.
+        self.val : float = val
+        self.sum : float = sum
+        self.sum2: float = sum2
     
     def accum(self):
         """
@@ -32,7 +32,7 @@ class Prop(object):
         ----------
         """
         self.sum += self.val
-        self.sum2 += math.sqrt(self.val)
+        self.sum2 += self.val * self.val
 
     def zero(self):
         """
