@@ -1,6 +1,31 @@
 # -*- coding: utf-8 -*-
 """Created on Tue Jun 25 14:12:58 2019
 
+/* [[pr_02_1 - all pairs, two dimensions]] */
+
+/*********************************************************************
+
+  This program is copyright material accompanying the book
+  "The Art of Molecular Dynamics Simulation", 2nd edition,
+  by D. C. Rapaport, published by Cambridge University Press (2004).
+
+  Copyright (C) 2004, 2011  D. C. Rapaport
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+**********************************************************************/
+
 @author: Efren A. Serra
 """
 
@@ -18,8 +43,6 @@ from _functions import (
         )
 
 from _vfunctions import (
-        ra_sadd,  \
-        ra_zero,  \
         rv_add,   \
         rv_dot,   \
         rv_rand,  \
@@ -29,7 +52,6 @@ from _vfunctions import (
         vecr_dot, \
         vecr_mul, \
         vecr_sadd,\
-        vecr_wrap,\
         )
 
 def AccumProps(icode: int):
@@ -53,10 +75,11 @@ def AccumProps(icode: int):
         _mdsim_globals['pressure'].avg(stepAvg)
 
 def AllocArrays():
-    """Allocate molecular array.
+    """Allocate array of molecules.
     """
     nMol = _mdsim_globals['nMol']
     sizeHistVel = _mdsim_globals['sizeHistVel']
+
     # The molecules
     mol = \
     np.array([Mol() for i in range(nMol)], dtype=Mol)
@@ -78,11 +101,12 @@ def ApplyBoundaryCond():
 
 def ComputeForces():
     """Compute the MD forces by evaluating the LJ potential
+       using all-pairs interactions.
     """
     j1 : int = 0
     j2 : int = 0
     fcVal : float = 0.
-    rr : np.float64 = 0.
+    rr : float = 0.
     rrCut : float = 0.
     rri : float   = 0.
     rri3 : float  = 0.
@@ -105,16 +129,18 @@ def ComputeForces():
         for j2 in range(j1+1, nMol):
             b = mol[j2]
             dr = a.r_diff(b)
-            dr = vecr_wrap(dr, region)
+            dr.wrap(region)
             rr = vecr_dot(dr, dr)
             if rr < rrCut:
                 rri = 1. / rr
                 rri3 = rri ** 3
                 fcVal = 48.0 * rri3 * (rri3 - 0.5) * rri
+
                 # Molecule at: j1
-                ra_sadd(a, fcVal, dr)
+                a.ra_sadd(fcVal, dr)
                 # Molecule at: j2
-                ra_sadd(b, -fcVal, dr)
+                b.ra_sadd(-fcVal, dr)
+
                 _mdsim_globals['uSum'] += 4. * rri3 * (rri3 - 1.) + 1.
                 _mdsim_globals['virSum'] += fcVal * rr
 
@@ -254,6 +280,8 @@ def PrintVelDist(fd: object):
     print("hfun: (%8.3f %8.3f)"%(_mdsim_globals['timeNow'],_mdsim_globals['hFunction']), file=fd)
     plt.scatter(bins, histVel, marker='+')
     plt.ylim(0.0)
+    plt.ylabel('f(|v|)')
+    plt.xlabel('|v|')
     plt.show()
 
 def InitCoords():
@@ -296,7 +324,7 @@ def InitAccels():
     mol = _mdsim_globals['mol']
     for m in mol:
         m.ra = VecR()
-        ra_zero(m)
+        m.ra_zero()
 
 def SetupJob():
     """Setup global variables prior to simulation.

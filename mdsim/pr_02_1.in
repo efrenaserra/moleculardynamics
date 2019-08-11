@@ -5,7 +5,7 @@ limitVel          4
 rangeVel          3.
 stepAvg           100
 stepEquil         0
-stepLimit         10000
+stepLimit         1000
 sizeHistVel       50
 stepAvg           100
 stepEquil         0

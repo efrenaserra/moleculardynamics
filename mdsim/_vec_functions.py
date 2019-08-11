@@ -5,11 +5,10 @@ Created on Mon Jul  1 10:53:02 2019
 @author: Efren A. Serra
 """
 
-import math, numpy as np, random
+import math, random
 from _types import VecR, Mol
 
 __ALL__ = [
-        'r_diff',
         'ra_sadd',
         'rv_add',
         'rv_rand',
@@ -21,11 +20,6 @@ __ALL__ = [
         'vecr_sadd',
         'vecr_wrap',
         ]
-
-def r_diff(a: Mol, b: Mol):
-    """Return molecular relative vector difference.
-    """
-    return VecR(a.r.x - b.r.x, a.r.y - b.r.y)
 
 def r_wrap(m: Mol, region: VecR):
     """
@@ -150,9 +144,3 @@ def ra_sadd(m, s, v):
     """
     m.ra.x += (s * v.x)
     m.ra.y += (s * v.y)
-
-def ra_zero(m):
-    """Zero molecular acceleration components.
-    """
-    m.ra.x = 0.0
-    m.ra.y = 0.0
