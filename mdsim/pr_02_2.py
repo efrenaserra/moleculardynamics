@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Created on Tue Jun 25 14:12:58 2019
 
-/* [[pr_02_2 - all pairs, two dimensions]] */
+/* [[pr_02_2 - velocity distribution]] */
 
 /*********************************************************************
 
