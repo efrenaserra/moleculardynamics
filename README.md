@@ -1,5 +1,4 @@
 # moleculardynamics
-Python implementation of molecular dynamics simulations algorithms found in The Art of Molecular Dynamics Simulations by D. C. Rappaport.
 /*********************************************************************
 
   This program is copyright material accompanying the book
