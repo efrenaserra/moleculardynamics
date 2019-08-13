@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Created on Tue Jun 25 14:12:58 2019
 
-/* [[pr_02_1 - all pairs, two dimensions]] */
+/* [[pr_03_1 - all pairs, two dimensions]] */
 
 /*********************************************************************
 
@@ -389,4 +389,4 @@ def RunMDSim(argv: list):
             moreCycles = False
 
 if __name__ == "__main__":
-    RunMDSim(['driver.py', 'pr_02_1.in'])
+    RunMDSim(['pr_03_1.in'])

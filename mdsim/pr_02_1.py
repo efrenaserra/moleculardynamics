@@ -30,19 +30,18 @@
 """
 
 import math, numpy as np, re, sys
-import matplotlib.pyplot as plt
 
 from _globals import NDIM, _mdsim_globals, _namelist_converter
 from _types   import (
         Mol, Prop, VecR
         )
 
-from _functions import (
+from _leapfrog_functions import (
         leapfrog_update_coordinates,\
         leapfrog_update_velocities, \
         )
 
-from _vfunctions import (
+from _vec_functions import (
         rv_add,   \
         rv_dot,   \
         rv_rand,  \
@@ -78,17 +77,11 @@ def AllocArrays():
     """Allocate array of molecules.
     """
     nMol = _mdsim_globals['nMol']
-    sizeHistVel = _mdsim_globals['sizeHistVel']
 
     # The molecules
     mol = \
     np.array([Mol() for i in range(nMol)], dtype=Mol)
     _mdsim_globals['mol'] = mol
-
-    # The velocity histogram
-    histVel = \
-    np.array([0.0 for i in range(sizeHistVel)], dtype=float)
-    _mdsim_globals['histVel'] = histVel
 
 def ApplyBoundaryCond():
     """Apply periodic boundary conditions.
@@ -165,32 +158,6 @@ def EvalProps():
     _mdsim_globals['kinEnergy'].val + uSum / nMol
     _mdsim_globals['pressure'].val = density * (vvSum + virSum) / (nMol * NDIM)
 
-def EvalVelDist():
-    j : int = 0
-    deltaV : float = 0.0
-    histSum : float = 0.0
-
-    histVel     = _mdsim_globals['histVel']
-    mol         = _mdsim_globals['mol']
-    rangeVel    = _mdsim_globals['rangeVel']
-    sizeHistVel = _mdsim_globals['sizeHistVel']
-
-    deltaV = rangeVel / sizeHistVel
-    for m in mol:
-        j =  int(math.sqrt(rv_dot(m,m)) / deltaV)
-        histVel[min([j, sizeHistVel - 1])] += 1
-
-    _mdsim_globals['countVel'] += 1
-    if _mdsim_globals['countVel'] == _mdsim_globals['limitVel']:
-        histSum = np.sum(histVel)
-        histVel /= histSum
-        _mdsim_globals['hFucnction'] = 0.0
-        for j in range(sizeHistVel):
-            if histVel[j] > 0.0:
-                _mdsim_globals['hFunction'] += histVel[j] * math.log(histVel[j] / ((j+0.5) * deltaV))
-        PrintVelDist(sys.stdout)
-        _mdsim_globals['countVel'] = 0
-
 def GetNameList(fd: str):
     """
     Parameters
@@ -251,7 +218,7 @@ def PrintSummary(fd: object):
     nMol = _mdsim_globals['nMol']
     totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
     kinEnergy='%7.4f %7.4f'%_mdsim_globals['kinEnergy'].est()
-    pressure='%7.4f'%_mdsim_globals['pressure'].est()[0]
+    pressure='%7.4f %7.4f'%_mdsim_globals['pressure'].est()
     print("%5d %8.4f %7.4f %s %s %s"%(\
           _mdsim_globals['stepCount'],\
           _mdsim_globals['timeNow'],  \
@@ -260,29 +227,6 @@ def PrintSummary(fd: object):
           kinEnergy, \
           pressure),  \
           file=fd)
-
-def PrintVelDist(fd: object):
-    """
-    Parameters
-    ----------
-    fd : object, 
-    """
-    histVel     = _mdsim_globals['histVel']
-    rangeVel    = _mdsim_globals['rangeVel']
-    sizeHistVel = _mdsim_globals['sizeHistVel']
-
-#    print("vdist (%.3f)"%(_mdsim_globals['timeNow']), file=fd)
-    bins = []
-    for n in range(sizeHistVel):
-        vBin = (n + 0.5) * rangeVel / sizeHistVel
-        bins.append(vBin)
-#        print("%8.3f %8.3f"%(vBin, histVel[n]), file=fd)
-    print("hfun: (%8.3f %8.3f)"%(_mdsim_globals['timeNow'],_mdsim_globals['hFunction']), file=fd)
-    plt.scatter(bins, histVel, marker='+')
-    plt.ylim(0.0)
-    plt.ylabel('f(|v|)')
-    plt.xlabel('|v|')
-    plt.show()
 
 def InitCoords():
     """Initialize the molecular coordinates
@@ -369,16 +313,13 @@ def SingleStep():
     LeapfrogStep(2)
     EvalProps()
     AccumProps(1)
-    if _mdsim_globals['stepCount'] >= _mdsim_globals['stepEquil'] and \
-    (_mdsim_globals['stepCount'] - _mdsim_globals['stepEquil']) % _mdsim_globals['stepVel'] == 0:
-        EvalVelDist()
     if _mdsim_globals['stepCount'] % _mdsim_globals['stepAvg'] == 0:
         AccumProps(2)
         PrintSummary(sys.stdout)
         AccumProps(0)
 
 def RunMDSim(argv: list):
-    GetNameList(argv[1])
+    GetNameList(argv[0])
     PrintNameList(sys.stdout)
     SetParams()
     SetupJob()
@@ -389,4 +330,4 @@ def RunMDSim(argv: list):
             moreCycles = False
 
 if __name__ == "__main__":
-    RunMDSim(['driver.py', 'pr_02_1.in'])
+    RunMDSim(['pr_02_1.in'])

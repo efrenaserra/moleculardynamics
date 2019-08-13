@@ -226,17 +226,18 @@ class Mol(object):
         ----------
         region : VecR, 
         """
-        # wrap the x-coordinate
-        if self.r.x >= 0.5 * region.x:
-            self.r.x -= region.x
-        elif self.r.x < -0.5 * region.x:
-            self.r.x += region.x
+        self.r.wrap(region)
+        # Wrap the x-coordinate
+#        if self.r.x >= 0.5 * region.x:
+#            self.r.x -= region.x
+#        elif self.r.x < -0.5 * region.x:
+#            self.r.x += region.x
 
-        # wrap the y-coordinate
-        if self.r.y >= 0.5 * region.y:
-            self.r.y -= region.y
-        elif self.r.y < -0.5 * region.y:
-            self.r.y += region.y
+        # Wrap the y-coordinate
+#        if self.r.y >= 0.5 * region.y:
+#            self.r.y -= region.y
+#        elif self.r.y < -0.5 * region.y:
+#            self.r.y += region.y
 
         return self
 

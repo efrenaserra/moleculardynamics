@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Created on Tue Jun 25 14:12:58 2019
 
-/* [[pr_02_1 - all pairs, two dimensions]] */
+/* [[pr_02_2 - all pairs, two dimensions]] */
 
 /*********************************************************************
 
@@ -37,12 +37,12 @@ from _types   import (
         Mol, Prop, VecR
         )
 
-from _functions import (
+from _leapfrog_functions import (
         leapfrog_update_coordinates,\
         leapfrog_update_velocities, \
         )
 
-from _vfunctions import (
+from _vec_functions import (
         rv_add,   \
         rv_dot,   \
         rv_rand,  \
@@ -143,6 +143,15 @@ def ComputeForces():
 
                 _mdsim_globals['uSum'] += 4. * rri3 * (rri3 - 1.) + 1.
                 _mdsim_globals['virSum'] += fcVal * rr
+
+def DisplayTrajectories():
+    mol   = _mdsim_globals['mol']
+    for n, m in enumerate(mol):
+        if n % 25 == 0:
+            plt.scatter(m.r.x, m.r.y, marker='o', c='red')
+        else:
+            plt.scatter(m.r.x, m.r.y, marker='o', c='black')
+    plt.show()
 
 def EvalProps():
     """Evaluate thermodynamic properties
@@ -251,7 +260,7 @@ def PrintSummary(fd: object):
     nMol = _mdsim_globals['nMol']
     totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
     kinEnergy='%7.4f %7.4f'%_mdsim_globals['kinEnergy'].est()
-    pressure='%7.4f'%_mdsim_globals['pressure'].est()[0]
+    pressure='%7.4f %7.4f'%_mdsim_globals['pressure'].est()
     print("%5d %8.4f %7.4f %s %s %s"%(\
           _mdsim_globals['stepCount'],\
           _mdsim_globals['timeNow'],  \
@@ -271,12 +280,12 @@ def PrintVelDist(fd: object):
     rangeVel    = _mdsim_globals['rangeVel']
     sizeHistVel = _mdsim_globals['sizeHistVel']
 
-#    print("vdist (%.3f)"%(_mdsim_globals['timeNow']), file=fd)
+    print("vdist (%.3f)"%(_mdsim_globals['timeNow']), file=fd)
     bins = []
     for n in range(sizeHistVel):
         vBin = (n + 0.5) * rangeVel / sizeHistVel
         bins.append(vBin)
-#        print("%8.3f %8.3f"%(vBin, histVel[n]), file=fd)
+        print("%8.3f %8.3f"%(vBin, histVel[n]), file=fd)
     print("hfun: (%8.3f %8.3f)"%(_mdsim_globals['timeNow'],_mdsim_globals['hFunction']), file=fd)
     plt.scatter(bins, histVel, marker='+')
     plt.ylim(0.0)
@@ -375,10 +384,11 @@ def SingleStep():
     if _mdsim_globals['stepCount'] % _mdsim_globals['stepAvg'] == 0:
         AccumProps(2)
         PrintSummary(sys.stdout)
+        DisplayTrajectories()
         AccumProps(0)
 
 def RunMDSim(argv: list):
-    GetNameList(argv[1])
+    GetNameList(argv[0])
     PrintNameList(sys.stdout)
     SetParams()
     SetupJob()
@@ -389,4 +399,4 @@ def RunMDSim(argv: list):
             moreCycles = False
 
 if __name__ == "__main__":
-    RunMDSim(['driver.py', 'pr_02_1.in'])
+    RunMDSim(['pr_02_2.in'])
