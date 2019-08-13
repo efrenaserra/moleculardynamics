@@ -138,7 +138,7 @@ def ra_diff(a,b):
     return VecR(a.ra.x - b.ra.x, a.ra.y - b.ra.y)
 
 def rv_rand(m):
-    """Set molecular velocity components.
+    """Set molecular velocity components to random values.
     Parameters
     ----------
     m : Mol, the molecular object
@@ -148,7 +148,7 @@ def rv_rand(m):
     m.rv.y = math.sin(s)
 
 def rv_scale(m, s):
-    """Set molecular velocity components.
+    """Scale molecular velocity components.
     """
     m.rv.x *= s
     m.rv.y *= s
@@ -160,7 +160,7 @@ def rv_add(v, m):
     v.y += m.rv.y
 
 def rv_dot(a, b):
-    """Accumulate molecular velocity components.
+    """Lenght squared of velocity vector.
     """
     return (a.rv.x * b.rv.x + a.rv.y * b.rv.y)
 
