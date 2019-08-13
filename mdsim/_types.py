@@ -188,20 +188,20 @@ class Mol(object):
     Attributes
     ----------
     r  : float
-        the property value
+        the position vector
     rv  : float
-        the sum of the property
+        the velocity vector
     ra : float
-        the sum squared of the cummulative property
+        the acceleration vector
 
     Methods
     -------
     r_diff(other)
-        Accumulates value and value squared of property.
+        Computes vector difference between self and other.
     r_wrap(region)
-        Zeros the sum and sum squared values of property.
+        Wraps the position vector to within boundary conditions.
     ra_zero()
-        Computes the average and variance of the property.
+        Zeros the acceleration vector.
     update_coordinates(integration_scheme, *args)
         Integrate the coordinates using integration scheme function.
     update_velocities(integration_scheme, *args)
@@ -227,17 +227,6 @@ class Mol(object):
         region : VecR, 
         """
         self.r.wrap(region)
-        # Wrap the x-coordinate
-#        if self.r.x >= 0.5 * region.x:
-#            self.r.x -= region.x
-#        elif self.r.x < -0.5 * region.x:
-#            self.r.x += region.x
-
-        # Wrap the y-coordinate
-#        if self.r.y >= 0.5 * region.y:
-#            self.r.y -= region.y
-#        elif self.r.y < -0.5 * region.y:
-#            self.r.y += region.y
 
         return self
 
