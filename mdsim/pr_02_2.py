@@ -148,9 +148,9 @@ def DisplayTrajectories():
     mol   = _mdsim_globals['mol']
     for n, m in enumerate(mol):
         if n % 25 == 0:
-            plt.scatter(m.r.x, m.r.y, marker='o', c='red')
+            plt.scatter(m.r.x, m.r.y, marker='o', s=5, c='red')
         else:
-            plt.scatter(m.r.x, m.r.y, marker='o', c='black')
+            plt.scatter(m.r.x, m.r.y, marker='o', s=5, c='black')
     plt.show()
 
 def EvalProps():
