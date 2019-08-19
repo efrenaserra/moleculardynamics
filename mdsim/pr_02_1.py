@@ -29,9 +29,10 @@
 @author: Efren A. Serra
 """
 
+NDIM : int = 2
 import math, numpy as np, re, sys
 
-from _globals import NDIM, _mdsim_globals, _namelist_converter
+from _globals import _mdsim_globals, _namelist_converter
 from _types   import (
         Mol, Prop, VecR
         )
@@ -236,12 +237,14 @@ def InitCoords():
     initUcell = _mdsim_globals['initUcell']
 
     gap = vecr_div(region, initUcell)
-    for nx in range(initUcell.x):
-        for ny in range(initUcell.y):
+    n = 0
+    for ny in range(initUcell.y):
+        for nx in range(initUcell.x):
             c = VecR(x=nx + 0.5, y=ny + 0.5)
             c = vecr_mul(c, gap)
             c = vecr_sadd(c, -0.5, region)
-            mol[nx * initUcell.x + ny].r = c
+            mol[n].r = c
+            n += 1
 
 def InitVels():
     """Initialize the molecular velocities

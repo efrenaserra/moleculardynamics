@@ -113,17 +113,38 @@ class VecI(object):
     y  : float
         the sum of the property
     """
-    def __init__(self, x : int=0, y : int=0):
-        self.x = x
-        self.y = y
+
+    def __init__(self, x : int=0, y : int=0, z : int=0):
+        self.x = int(x)
+        self.y = int(y)
+        self.z = int(z)
+
+    def __add__(self, other):
+        """Return component vector addition.
+        """
+        return VecI((self.x - other.x), (self.y - other.y), (self.z - other.z))
+
+    def truediv(a, b: 'VecR') -> 'VecR':
+        "Same as a / b."
+        return VecR(a.x / b.x, a.y / b.y, a.z / b.z)
+
+    __truediv__ = truediv
+
+    def mul(a: object, b: object) -> 'VecI':
+        return VecI(a.x * b.x, a.y * b.y, a.z * b.z)
+
+    rmul = mul # commutative operation
 
     def __repr__(self):
-        return "<x: %d, y: %d>"%(self.x,self.y)
+        return 'VecI({self.x}, {self.y}, {self.z})'.format(self=self)
 
-    def __sub__(self, other):
-        """Rerturn relative vector difference
+    def vol(self) -> int:
+        return self.x * self.y * self.z
+
+    def vc_to_list_index(self, cells: 'VecI') -> int:
+        """Translate vector cell index to scalar index using column-major order.
         """
-        return VecI((self.x - other.x), (self.y - other.y))
+        return (self.z * cells.y + self.y) * cells.x + self.x
 
 class VecR(object):
     """
@@ -136,18 +157,48 @@ class VecR(object):
         the x coordinate
     y  : float
         the y coordinate
+    z  : float
+        the z coordinate
     """
-    def __init__(self, x : float=0., y : float=0.):
+    def __init__(self, x : float=0., y : float=0., z : float=0.):
         self.x = x
         self.y = y
+        self.z = z
+
+    def __add__(self, rhs):
+        """Return relative vector difference."""
+        return VecR(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+
+    __radd__ = __add__
+
+    def __iadd__(self, other) -> 'VecR':
+        return VecR(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    def truediv(a, b) -> 'VecR':
+        "Same as a / b."
+        return VecR(a.x / b.x, a.y / b.y, a.z / b.z)
+
+    __truediv__ = truediv
 
     def __sub__(self, other):
-        """Return relative vector difference.
-        """
-        return VecR((self.x - other.x), (self.y - other.y))
+        """Return relative vector difference."""
+        return VecR(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    def __imul__(self, rhs: 'VecR') -> 'VecR':
+        return VecR(self.x * rhs.x, self.y * rhs.y, self.z * rhs.z)
+
+    def mul(a: object, b: object) -> 'VecR':
+        return VecR(a.x * b.x, a.y * b.y, a.z * b.z)
+
+    rmul = mul # commutative operation
+
+    def __mul__(self, rhs: float) -> 'VecR':
+        return VecR(self.x * rhs, self.y * rhs, self.z * rhs)
+
+    __rmul__ = __mul__ # commutative operation
 
     def vcsum(self):
-        return self.x + self.y
+        return self.x + self.y + self.z
 
     def wrap(self, region):
         """
@@ -167,6 +218,12 @@ class VecR(object):
         elif self.y < -0.5 * region.y:
             self.y += region.y
 
+        # Wrap the z-coordinate
+        if self.z >= 0.5 * region.z:
+            self.z -= region.z
+        elif self.z < -0.5 * region.z:
+            self.z += region.z
+
         return self
 
     def zero(self):
@@ -174,11 +231,12 @@ class VecR(object):
         """
         self.x = 0.
         self.y = 0.
+        self.z = 0.
 
         return self
 
     def __repr__(self):
-        return "<x: %f, y: %f>"%(self.x,self.y)
+        return 'VecR({self.x}, {self.y}, {self.z})'.format(self=self)
 
 class Mol(object):
     """
@@ -213,7 +271,7 @@ class Mol(object):
         self.ra = ra
 
     def __repr__(self):
-        return "<r: %s, rv: %s, ra: %s>"%(self.r,self.rv,self.ra)
+        return 'Mol({self.r}, {self.rv}, {self.ra})'.format(self=self)
 
     def r_diff(self, other):
         """Return molecule's relative vector difference.

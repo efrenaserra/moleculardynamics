@@ -39,21 +39,21 @@ _is_loaded = True
 
 """Global variables
 """
-NDIM : int = 2
 _mdsim_globals = {}
 _namelist_converter = {
-    'deltaT'      : lambda x: float(x),
-    'density'     : lambda x: float(x),
-    'initUcell'   : lambda x,y: VecI(int(x),int(y)),
-    'limitVel'    : lambda x: int(x),
-    'nebrTabFac'  : lambda x: int(x),
-    'randSeed'    : lambda x: int(x),
-    'rangeVel'    : lambda x: float(x),
-    'rNebrShell'  : lambda x: float(x),
-    'sizeHistVel' : lambda x: int(x),
-    'stepAvg'     : lambda x: int(x),
-    'stepEquil'   : lambda x: int(x),
-    'stepLimit'   : lambda x: int(x),
-    'stepVel'     : lambda x: int(x),
-    'temperature' : lambda x: float(x),
+    'deltaT'         : lambda x: float(x),
+    'density'        : lambda x: float(x),
+    'initUcell'      : lambda x,y,z: VecI(int(x),int(y),int(z)),
+    'limitVel'       : lambda x: int(x),
+    'nebrTabFac'     : lambda x: int(x),
+    'randSeed'       : lambda x: int(x),
+    'rangeVel'       : lambda x: float(x),
+    'rNebrShell'     : lambda x: float(x),
+    'sizeHistVel'    : lambda x: int(x),
+    'stepAvg'        : lambda x: int(x),
+    'stepEquil'      : lambda x: int(x),
+    'stepInitlzTemp' : lambda x: int(x),
+    'stepLimit'      : lambda x: int(x),
+    'stepVel'        : lambda x: int(x),
+    'temperature'    : lambda x: float(x),
     }

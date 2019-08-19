@@ -28,29 +28,17 @@ Created on Mon Jul  1 10:53:02 2019
 @author: Efren A. Serra
 """
 
-import math, random
-from _types import VecR, Mol
+from _types import VecI, VecR, Mol
 
 __ALL__ = [
         'ra_sadd',
         'rv_add',
-        'rv_rand',
         'rv_sadd',
         'rv_scale',
-        'vecr_div',
         'vecr_dot',
-        'vecr_mul',
         'vecr_sadd',
         'vecr_wrap',
-        'vrand',
         ]
-
-def vrand(p):
-    """Produce unit vectors in two dimensions.
-    """
-    s : float = 2. * math.pi * random.random()
-    p.rv.x = math.cos(s)
-    p.rv.y = math.sin(s)
 
 def r_wrap(m: Mol, region: VecR):
     """
@@ -59,23 +47,64 @@ def r_wrap(m: Mol, region: VecR):
     m : Mol, 
     region : VecR, 
     """
-    # wrap the x-coordinate
+    # Wrap the x-coordinate
     if m.r.x >= 0.5 * region.x:
         m.r.x -= region.x
     elif m.r.x < -0.5 * region.x:
         m.r.x += region.x
 
-    # wrap the y-coordinate
+    # Wrap the y-coordinate
     if m.r.y >= 0.5 * region.y:
         m.r.y -= region.y
     elif m.r.y < -0.5 * region.y:
         m.r.y += region.y
+
+    # Wrap the z-coordinate
+    if m.r.z >= 0.5 * region.z:
+        m.r.z -= region.z
+    elif m.r.z < -0.5 * region.z:
+        m.r.z += region.z
+
+def _VCell_wrap_all(vc: VecI, cells: VecI, rs: VecR, region: VecR):
+    # Wrap the x-coordinate
+    if vc.x >= cells.x:
+        vc.x = 0
+        rs.x = region.x
+    elif vc.x < 0:
+        vc.x = cells.x - 1
+        rs.x = - region.x
+
+    # Wrap the y-coordinate
+    if vc.y >= cells.y:
+        vc.y = 0
+        rs.y = region.y
+    elif vc.y < 0:
+        vc.y = cells.y - 1
+        rs.y = - region.y
+
+    # Wrap the z-coordinate
+    if vc.z >= cells.z:
+        vc.z = 0
+        rs.z = region.z
+    elif vc.z < 0:
+        vc.z = cells.z - 1
+        rs.z = - region.z
+
+def veci_mul(a: VecR, b: VecR):
+    """Multiply two VecR objects component-wise.
+    Parameters
+    ----------
+    a : VecR, a molecule position
+    b : VecR, another molecule position
+    """
+    return VecI(int(a.x * b.x), int(a.y * b.y), int(a.z * b.z))
 
 def vecr_sadd(a: VecR, s: float, v: VecR):
     """Scale molecular velocity components.
     """
     a.x += (s * v.x)
     a.y += (s * v.y)
+    a.z += (s * v.z)
 
     return a
 
@@ -86,25 +115,7 @@ def vecr_dot(a: VecR, b: VecR):
     a : VecR, a molecule position
     b : VecR, another molecule position
     """
-    return (a.x * b.x + a.y * b.y)
-
-def vecr_div(a: VecR, b: VecR):
-    """Divide two VecR objects component-wise.
-    Parameters
-    ----------
-    a : VecR, a molecule position
-    b : VecR, another molecule position
-    """
-    return VecR(a.x / b.x, a.y / b.y)
-
-def vecr_mul(a: VecR, b: VecR):
-    """Multiply two VecR objects component-wise.
-    Parameters
-    ----------
-    a : VecR, a molecule position
-    b : VecR, another molecule position
-    """
-    return VecR(a.x * b.x, a.y * b.y)
+    return (a.x * b.x + a.y * b.y + a.z * b.z)
 
 def vecr_wrap(vecr,region):
     """
@@ -113,62 +124,61 @@ def vecr_wrap(vecr,region):
     m : Mol, 
     region : VecR, 
     """
-    # wrap the x-coordinate
+    # Wrap the x-coordinate
     if vecr.x >= 0.5 * region.x:
         vecr.x -= region.x
     elif vecr.x < -0.5 * region.x:
         vecr.x += region.x
 
-    # wrap the y-coordinate
+    # Wrap the y-coordinate
     if vecr.y >= 0.5 * region.y:
         vecr.y -= region.y
     elif vecr.y < -0.5 * region.y:
         vecr.y += region.y
+
+    # Wrap the z-coordinate
+    if vecr.z >= 0.5 * region.z:
+        vecr.z -= region.z
+    elif vecr.z < -0.5 * region.z:
+        vecr.z += region.y
 
     return vecr
 
 def rv_diff(a,b):
     """Return molecular velocity difference.
     """
-    return VecR(a.rv.x - b.rv.x, a.rv.y - b.rv.y)
+    return VecR(a.rv.x - b.rv.x, a.rv.y - b.rv.y, a.rv.z - b.rv.z)
 
 def ra_diff(a,b):
     """Return molecular acceleration difference.
     """
-    return VecR(a.ra.x - b.ra.x, a.ra.y - b.ra.y)
-
-def rv_rand(m):
-    """Set molecular velocity components to random values.
-    Parameters
-    ----------
-    m : Mol, the molecular object
-    """
-    s : float = 2. * math.pi * random.random()
-    m.rv.x = math.cos(s)
-    m.rv.y = math.sin(s)
+    return VecR(a.ra.x - b.ra.x, a.ra.y - b.ra.y, a.ra.z - b.ra.z)
 
 def rv_scale(m, s):
     """Scale molecular velocity components.
     """
     m.rv.x *= s
     m.rv.y *= s
+    m.rv.z *= s
 
 def rv_add(v, m):
     """Accumulate molecular velocity components.
     """
     v.x += m.rv.x
     v.y += m.rv.y
+    v.z += m.rv.z
 
 def rv_dot(a, b):
     """Lenght squared of velocity vector.
     """
-    return (a.rv.x * b.rv.x + a.rv.y * b.rv.y)
+    return (a.rv.x * b.rv.x + a.rv.y * b.rv.y + a.rv.z * b.rv.z)
 
 def rv_sadd(m, s, v):
     """Scale molecular velocity components.
     """
     m.rv.x += (s * v.x)
     m.rv.y += (s * v.y)
+    m.rv.z += (s * v.z)
 
 def ra_sadd(m, s, v):
     """Scale molecular acceleration components.
