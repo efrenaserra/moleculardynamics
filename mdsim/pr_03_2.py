@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Created on Tue Jun 25 14:12:58 2019
 
-/* [[pr_03_1 - cells and leapfrog]] */
+/* [[pr_03_2 - neighbor list and leapfrog]] */
 
 /*********************************************************************
 
@@ -56,47 +56,94 @@ from _vec_functions import (
         _VCell_wrap_all,
         )
 
-def AccumProps(icode: int):
-    """Accumulate thermodynamics properties.
-    Parameters
-    ----------
-    icount : int,
+def RunMDSim(argv: list):
+    GetNameList(argv[0])
+    PrintNameList(sys.stdout)
+    SetParams()
+    SetupJob()
+    moreCycles = True
+    while moreCycles:
+        SingleStep()
+        if _mdsim_globals['stepCount'] >= _mdsim_globals['stepLimit']:
+            moreCycles = False
+
+def SingleStep():
+    _mdsim_globals['stepCount'] += 1
+    _mdsim_globals['timeNow'] = \
+    _mdsim_globals['stepCount'] * _mdsim_globals['deltaT']
+
+    LeapfrogStep(1)
+    ApplyBoundaryCond()
+    if _mdsim_globals['nebrNow']:
+        _mdsim_globals['nebrNow'] = False
+        _mdsim_globals['dispHi'] = 0.
+        BuildNebrList()
+    ComputeForces()
+    LeapfrogStep(2)
+    EvalProps()
+    if _mdsim_globals['stepCount'] < _mdsim_globals['stepEquil']:
+        AdjustInitTemp()
+    AccumProps(1)
+    if _mdsim_globals['stepCount'] % _mdsim_globals['stepAvg'] == 0:
+        AccumProps(2)
+        PrintSummary(sys.stdout)
+        AccumProps(0)
+
+def SetupJob():
+    """Setup global variables prior to simulation.
     """
-    if icode == 0:
-        _mdsim_globals['totEnergy'].zero()
-        _mdsim_globals['kinEnergy'].zero()
-        _mdsim_globals['pressure'].zero()
-    elif icode == 1:
-        _mdsim_globals['totEnergy'].accum()
-        _mdsim_globals['kinEnergy'].accum()
-        _mdsim_globals['pressure'].accum()        
-    elif icode == 2:
-        stepAvg = _mdsim_globals['stepAvg']
-        _mdsim_globals['totEnergy'].avg(stepAvg)
-        _mdsim_globals['kinEnergy'].avg(stepAvg)
-        _mdsim_globals['pressure'].avg(stepAvg)
+    AllocArrays()
+    _mdsim_globals['stepCount'] = 0
+    InitCoords()
+    InitVels()
+    InitAccels()
+    AccumProps(0)
+    _mdsim_globals['kinEnInitSum'] = 0.0
+    _mdsim_globals['nebrNow'] = True
 
-def AdjustInitTemp():
-    mol = _mdsim_globals['mol']
-    _mdsim_globals['kinEnInitSum'] += _mdsim_globals['kinEnergy'].val
+def SetParams():
+    density    = _mdsim_globals['density']
+    initUcell  = _mdsim_globals['initUcell']
+    nebrTabFac = _mdsim_globals['nebrTabFac']
+    rNebrShell = _mdsim_globals['rNebrShell']
 
-    if _mdsim_globals['stepCount'] % _mdsim_globals['stepInitlzTemp'] == 0:
-        _mdsim_globals['kinEnInitSum'] /= _mdsim_globals['stepInitlzTemp']
-        vFac = \
-        _mdsim_globals['velMag'] / math.sqrt(2. * _mdsim_globals['kinEnInitSum'])
-        for m in mol:
-            rv_scale(m, vFac)
-        _mdsim_globals['kinEnInitSum'] = 0.0
+    rCut = math.pow(2., 1./6.)
+    _mdsim_globals['rCut'] = rCut
+    region =\
+    VecR(x=1. / math.pow(density, 1./3.) * initUcell.x, \
+         y=1. / math.pow(density, 1./3.) * initUcell.y, \
+         z=1. / math.pow(density, 1./3.) * initUcell.z)
+    _mdsim_globals['region'] = region
+
+    # The total number of molecules
+    nMol = initUcell.x * initUcell.y * initUcell.z
+    _mdsim_globals['nMol'] = nMol
+
+    _mdsim_globals['velMag'] = \
+    math.sqrt(NDIM * (1. - 1. / nMol) * _mdsim_globals['temperature'])
+
+    _mdsim_globals['cells'] = \
+    VecI(x=(1. / (rCut + rNebrShell)) * region.x, \
+         y=(1. / (rCut + rNebrShell)) * region.y, \
+         z=(1. / (rCut + rNebrShell)) * region.z)
+
+    # The neighbor list size
+    _mdsim_globals['nebrTabMax'] = nebrTabFac * nMol 
+    
+    # Initialize kinEnery, pressure and totEnergy properties
+    _mdsim_globals['kinEnergy'] = Prop()
+    _mdsim_globals['pressure']  = Prop()
+    _mdsim_globals['totEnergy'] = Prop()
 
 def AllocArrays():
     """Allocate array of molecules.
     """
-    nMol = _mdsim_globals['nMol']
+    nMol       = _mdsim_globals['nMol']
+    nebrTabMax = _mdsim_globals['nebrTabMax']
 
     # The molecules
-    mol = \
+    _mdsim_globals['mol'] = \
     np.array([Mol() for i in range(nMol)], dtype=Mol)
-    _mdsim_globals['mol'] = mol
 
     # The cells
     cells : VecI = _mdsim_globals['cells']
@@ -104,14 +151,93 @@ def AllocArrays():
     _mdsim_globals['cellList'] = \
     np.array([-1 for i in range(nCells + nMol)], dtype=int)
 
-def ApplyBoundaryCond():
-    """Apply periodic boundary conditions.
-    """
-    mol    = _mdsim_globals['mol']
-    region = _mdsim_globals['region']
+    # The neighbor table
+    _mdsim_globals['nebrTab'] = \
+    np.array([-1 for i in range(2 * nebrTabMax)], dtype=int)
 
-    for m in mol:
-        m.r_wrap(region)
+def BuildNebrList():
+    cc : VecI =  None
+    m1v: VecI =  None
+    m2v: VecI =  None
+    vOff = [
+            VecI(0,0,0),
+            VecI(1,0,0),
+            VecI(1,1,0),
+            VecI(0,1,0),
+            VecI(-1,1,0),
+            VecI(0,0,1),
+            VecI(1,0,1),
+            VecI(1,1,1),
+            VecI(0,1,1),
+            VecI(-1,1,1),
+            VecI(-1,0,1),
+            VecI(-1,-1,1),
+            VecI(0,-1,1),
+            VecI(1,-1,1),
+            ]
+    c     : int = 0
+    j1    : int = 0
+    j2    : int = 0
+
+    cells    = _mdsim_globals['cells']
+    cellList = _mdsim_globals['cellList']
+    nCells   = cells.vol()
+
+    mol      = _mdsim_globals['mol']
+    nMol     = _mdsim_globals['nMol']
+    rCut     = _mdsim_globals['rCut']
+    region   = _mdsim_globals['region']
+    rNebrShell = _mdsim_globals['rNebrShell']
+    nebrTab  = _mdsim_globals['nebrTab']
+    nebrTabMax = _mdsim_globals['nebrTabMax']
+    rrNebr   =  (rCut + rNebrShell) * (rCut + rNebrShell)
+
+    invWid: VecR = cells / region
+    for n in range(nMol, nMol + nCells):
+        cellList[n] = -1
+
+    for n in range(nMol):
+        rs = mol[n].r + (0.5 * region)
+        cc = VecI(rs.x * invWid.x, rs.y * invWid.y, rs.z * invWid.z)
+        c  = cc.vc_to_list_index(cells) + nMol
+        cellList[n] = cellList[c]
+        cellList[c] = n
+
+    nebrTabLen : int = 0
+    rshift = VecR()
+    for m1z in range(cells.z):
+        for m1y in range(cells.y):
+            for m1x in range(cells.x):
+                """Vector cell index to which this molecule belongs."""
+                m1v = VecI(m1x,m1y,m1z)
+                """Translate vector cell index, m1v, to cell list index."""
+                m1 = m1v.vc_to_list_index(cells) + nMol
+                for offset in range(N_OFFSET):
+                    """Vector cell relative to m1v."""
+                    m2v = m1v + vOff[offset]
+                    """ Periodic boundary-conditions/shift coordinates."""
+                    rshift.zero()
+                    _VCell_wrap_all(m2v, cells, rshift, region)
+                    """Translate vector cell index, m2v, to cell list index."""
+                    m2 = m2v.vc_to_list_index(cells) + nMol
+                    j1 = cellList[m1]
+                    while j1 >= 0:
+                        j2 = cellList[m2]
+                        while j2 >= 0:
+                            if m1 != m2 or j2 < j1:
+                                a = mol[j1]
+                                b = mol[j2]
+                                dr = a.r_diff(b)
+                                dr -= rshift
+                                rr = vecr_dot(dr, dr)
+                                if rr < rrNebr:
+                                    if nebrTabLen >= nebrTabMax:
+                                        sys.exit(1)
+                                    nebrTab[2 * nebrTabLen] = j1
+                                    nebrTab[2 * nebrTabLen + 1] = j2
+                                    nebrTabLen += 1
+                            j2 = cellList[j2]
+                        j1 = cellList[j1]
 
 def ComputeForces():
     """Compute the MD forces by evaluating the LJ potential
@@ -228,74 +354,6 @@ def ComputeForces():
                             j2 = cellList[j2]
                         j1 = cellList[j1]
 
-def EvalProps():
-    """Evaluate thermodynamic properties
-    """
-    density= _mdsim_globals['density']
-    mol    = _mdsim_globals['mol']
-    nMol   = _mdsim_globals['nMol']
-    uSum   = _mdsim_globals['uSum']
-    virSum = _mdsim_globals['virSum']
-
-    vSum = VecR()
-    vvSum : float = 0.
-    for m in mol:
-        rv_add(vSum, m)
-        vvSum += rv_dot(m, m)
-
-    _mdsim_globals['vSum'] = vSum
-    _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol
-    _mdsim_globals['totEnergy'].val = \
-    _mdsim_globals['kinEnergy'].val + uSum / nMol
-    _mdsim_globals['pressure'].val = density * (vvSum + virSum) / (nMol * NDIM)
-
-def EvalVelDist():
-    j : int = 0
-    deltaV : float = 0.0
-    histSum : float = 0.0
-
-    histVel     = _mdsim_globals['histVel']
-    mol         = _mdsim_globals['mol']
-    rangeVel    = _mdsim_globals['rangeVel']
-    sizeHistVel = _mdsim_globals['sizeHistVel']
-
-    deltaV = rangeVel / sizeHistVel
-    for m in mol:
-        j =  int(math.sqrt(rv_dot(m,m)) / deltaV)
-        histVel[min([j, sizeHistVel - 1])] += 1
-
-    _mdsim_globals['countVel'] += 1
-    if _mdsim_globals['countVel'] == _mdsim_globals['limitVel']:
-        histSum = np.sum(histVel)
-        histVel /= histSum
-        _mdsim_globals['hFucnction'] = 0.0
-        for j in range(sizeHistVel):
-            if histVel[j] > 0.0:
-                _mdsim_globals['hFunction'] += histVel[j] * math.log(histVel[j] / ((j+0.5) * deltaV))
-        _mdsim_globals['countVel'] = 0
-
-def GetNameList(fd: str):
-    """
-    Parameters
-    ----------
-    fd : str, the filename
-    """
-    with open(fd, 'r') as f:
-        pattern = re.compile(r'initUcell')
-        for line in f:
-            m = pattern.match(line)
-            if m:
-                k = 'initUcell'
-                line = line[len(k):]
-                (nx,ny,nz) = line.split()
-                # Matrix of molecular unit cells
-                _mdsim_globals[k] = \
-                _namelist_converter[k](nx,ny,nz)
-            else:
-                (k,v) = line.split()
-                _mdsim_globals[k] = \
-                _namelist_converter[k](v)
-
 def LeapfrogStep(part: int):
     """
     Parameters
@@ -317,32 +375,26 @@ def LeapfrogStep(part: int):
             # Integrate velocities
             m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
 
-def PrintNameList(fd: object):
+def ApplyBoundaryCond():
+    """Apply periodic boundary conditions.
     """
-    Parameters
-    ----------
-    fd : object, 
-    """
-    print(_mdsim_globals, file=fd)
+    mol    = _mdsim_globals['mol']
+    region = _mdsim_globals['region']
 
-def PrintSummary(fd: object):
-    """
-    Parameters
-    ----------
-    fd : object, 
-    """
-    nMol = _mdsim_globals['nMol']
-    totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
-    kinEnergy='%7.4f %7.4f'%_mdsim_globals['kinEnergy'].est()
-    pressure='%7.4f %7.4f'%_mdsim_globals['pressure'].est()
-    print("%5d %8.4f %7.4f %s %s %s"%(\
-          _mdsim_globals['stepCount'],\
-          _mdsim_globals['timeNow'],  \
-          _mdsim_globals['vSum'].vcsum() / nMol,\
-          totEnergy, \
-          kinEnergy, \
-          pressure),  \
-          file=fd)
+    for m in mol:
+        m.r_wrap(region)
+
+def AdjustInitTemp():
+    mol = _mdsim_globals['mol']
+    _mdsim_globals['kinEnInitSum'] += _mdsim_globals['kinEnergy'].val
+
+    if _mdsim_globals['stepCount'] % _mdsim_globals['stepInitlzTemp'] == 0:
+        _mdsim_globals['kinEnInitSum'] /= _mdsim_globals['stepInitlzTemp']
+        vFac = \
+        _mdsim_globals['velMag'] / math.sqrt(2. * _mdsim_globals['kinEnInitSum'])
+        for m in mol:
+            rv_scale(m, vFac)
+        _mdsim_globals['kinEnInitSum'] = 0.0
 
 def InitCoords():
     """Initialize the molecular coordinates
@@ -378,6 +430,7 @@ def InitVels():
         rv_add(vSum, m)
 
     _mdsim_globals['vSum'] = vSum
+
     # Scale molecular velocities
     for m in mol:
         rv_sadd(m, -1. / nMol, vSum)
@@ -390,74 +443,103 @@ def InitAccels():
         m.ra = VecR()
         m.ra_zero()
 
-def SetupJob():
-    """Setup global variables prior to simulation.
+def EvalProps():
+    """Evaluate thermodynamic properties
     """
-    AllocArrays()
-    _mdsim_globals['stepCount'] = 0
-    InitCoords()
-    InitVels()
-    InitAccels()
-    AccumProps(0)
-    _mdsim_globals['kinEnInitSum'] = 0.0
-
-def SetParams():
     density = _mdsim_globals['density']
-    initUcell = _mdsim_globals['initUcell']
+    deltaT  = _mdsim_globals['deltaT']
+    mol     = _mdsim_globals['mol']
+    nMol    = _mdsim_globals['nMol']
+    uSum    = _mdsim_globals['uSum']
+    virSum  = _mdsim_globals['virSum']
 
-    rCut = math.pow(2., 1./6.)
-    _mdsim_globals['rCut'] = rCut
-    region =\
-    VecR(x=1. / math.pow(density, 1./3.) * initUcell.x, \
-         y=1. / math.pow(density, 1./3.) * initUcell.y, \
-         z=1. / math.pow(density, 1./3.) * initUcell.z)
-    _mdsim_globals['region'] = region
+    vSum = VecR()
+    vvMax : float = 0.
+    vvSum : float = 0.
+    for m in mol:
+        rv_add(vSum, m)
+        vv = rv_dot(m, m)
+        vvSum += vv
+        vvMax = max([vvMax, vv])
 
-    # The total number of molecules
-    nMol = initUcell.x * initUcell.y * initUcell.z
-    _mdsim_globals['nMol'] = nMol
+    _mdsim_globals['dispHi'] += math.sqrt(vvMax) * deltaT
+    if _mdsim_globals['dispHi'] > 0.5 * _mdsim_globals['rNebrShell']:
+        _mdsim_globals['nebrNow'] = True
 
-    _mdsim_globals['velMag'] = \
-    math.sqrt(NDIM * (1. - 1. / nMol) * _mdsim_globals['temperature'])
+    _mdsim_globals['vSum'] = vSum
+    _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol
+    _mdsim_globals['totEnergy'].val = \
+    _mdsim_globals['kinEnergy'].val + uSum / nMol
+    _mdsim_globals['pressure'].val = density * (vvSum + virSum) / (nMol * NDIM)
 
-    _mdsim_globals['cells'] = \
-    VecI(x=(1. / rCut) * region.x, \
-         y=(1. / rCut) * region.y, \
-         z=(1. / rCut) * region.z)
+def AccumProps(icode: int):
+    """Accumulate thermodynamics properties.
+    Parameters
+    ----------
+    icount : int,
+    """
+    if icode == 0:
+        _mdsim_globals['totEnergy'].zero()
+        _mdsim_globals['kinEnergy'].zero()
+        _mdsim_globals['pressure'].zero()
+    elif icode == 1:
+        _mdsim_globals['totEnergy'].accum()
+        _mdsim_globals['kinEnergy'].accum()
+        _mdsim_globals['pressure'].accum()
+    elif icode == 2:
+        stepAvg = _mdsim_globals['stepAvg']
+        _mdsim_globals['totEnergy'].avg(stepAvg)
+        _mdsim_globals['kinEnergy'].avg(stepAvg)
+        _mdsim_globals['pressure'].avg(stepAvg)
 
-    # Initialize kinEnery, pressure and totEnergy properties
-    _mdsim_globals['kinEnergy'] = Prop()
-    _mdsim_globals['pressure']  = Prop()
-    _mdsim_globals['totEnergy'] = Prop()
+def PrintSummary(fd: object):
+    """
+    Parameters
+    ----------
+    fd : object, 
+    """
+    nMol = _mdsim_globals['nMol']
+    totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
+    kinEnergy='%7.4f %7.4f'%_mdsim_globals['kinEnergy'].est()
+    pressure='%7.4f %7.4f'%_mdsim_globals['pressure'].est()
+    print("%5d %8.4f %7.4f %s %s %s"%(\
+          _mdsim_globals['stepCount'],\
+          _mdsim_globals['timeNow'],  \
+          _mdsim_globals['vSum'].vcsum() / nMol,\
+          totEnergy, \
+          kinEnergy, \
+          pressure),  \
+          file=fd)
 
-def SingleStep():
-    _mdsim_globals['stepCount'] += 1
-    _mdsim_globals['timeNow'] = \
-    _mdsim_globals['stepCount'] * _mdsim_globals['deltaT']
+def GetNameList(fd: str):
+    """
+    Parameters
+    ----------
+    fd : str, the filename
+    """
+    with open(fd, 'r') as f:
+        pattern = re.compile(r'initUcell')
+        for line in f:
+            m = pattern.match(line)
+            if m:
+                k = 'initUcell'
+                line = line[len(k):]
+                (nx,ny,nz) = line.split()
+                # Matrix of molecular unit cells
+                _mdsim_globals[k] = \
+                _namelist_converter[k](nx,ny,nz)
+            else:
+                (k,v) = line.split()
+                _mdsim_globals[k] = \
+                _namelist_converter[k](v)
 
-    LeapfrogStep(1)
-    ApplyBoundaryCond()
-    ComputeForces()
-    LeapfrogStep(2)
-    EvalProps()
-    if _mdsim_globals['stepCount'] < _mdsim_globals['stepEquil']:
-        AdjustInitTemp()
-    AccumProps(1)
-    if _mdsim_globals['stepCount'] % _mdsim_globals['stepAvg'] == 0:
-        AccumProps(2)
-        PrintSummary(sys.stdout)
-        AccumProps(0)
-
-def RunMDSim(argv: list):
-    GetNameList(argv[0])
-    PrintNameList(sys.stdout)
-    SetParams()
-    SetupJob()
-    moreCycles = True
-    while moreCycles:
-        SingleStep()
-        if _mdsim_globals['stepCount'] >= _mdsim_globals['stepLimit']:
-            moreCycles = False
+def PrintNameList(fd: object):
+    """
+    Parameters
+    ----------
+    fd : object, the output file descriptor
+    """
+    print(_mdsim_globals, file=fd)
 
 if __name__ == "__main__":
-    RunMDSim(['pr_03_1.in'])
+    RunMDSim(['pr_03_2.in'])
