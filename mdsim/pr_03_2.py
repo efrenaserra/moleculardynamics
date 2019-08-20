@@ -159,21 +159,23 @@ def BuildNebrList():
     cc : VecI =  None
     m1v: VecI =  None
     m2v: VecI =  None
-    vOff = [
-            VecI(0,0,0),
-            VecI(1,0,0),
-            VecI(1,1,0),
-            VecI(0,1,0),
-            VecI(-1,1,0),
-            VecI(0,0,1),
-            VecI(1,0,1),
-            VecI(1,1,1),
-            VecI(0,1,1),
-            VecI(-1,1,1),
-            VecI(-1,0,1),
-            VecI(-1,-1,1),
-            VecI(0,-1,1),
-            VecI(1,-1,1),
+    vOff = [               # Mapping from cell vector to list index:
+                           #   (c.z * cells.y + c.y) * cells.x + c.x -> 0
+                           # With cells = VecI(3, 3, 3), list indices are:
+            VecI(0,0,0),   # (0 * 3 + 0) * 3 + 0 -> 0
+            VecI(1,0,0),   # (0 * 3 + 0) * 3 + 1 -> 1
+            VecI(1,1,0),   # (0 * 3 + 1) * 3 + 1 -> 4
+            VecI(0,1,0),   # (0 * 3 + 1) * 3 + 0 -> 3
+            VecI(-1,1,0),  # (0 * 3 + 1) * 3 - 1 -> 2
+            VecI(0,0,1),   # (1 * 3 + 0) * 3 + 0 -> 9
+            VecI(1,0,1),   # (1 * 3 + 0) * 3 + 1 -> 10
+            VecI(1,1,1),   # (1 * 3 + 1) * 3 + 1 -> 13
+            VecI(0,1,1),   # (1 * 3 + 1) * 3 + 0 -> 12
+            VecI(-1,1,1),  # (1 * 3 + 1) * 3 - 1 -> 11
+            VecI(-1,0,1),  # (1 * 3 + 0) * 3 - 1 -> 8
+            VecI(-1,-1,1), # (1 * 3 - 1) * 3 - 1 -> 5
+            VecI(0,-1,1),  # (1 * 3 - 1) * 3 + 0 -> 6
+            VecI(1,-1,1),  # (1 * 3 - 1) * 3 + 1 -> 7
             ]
     c     : int = 0
     j1    : int = 0
