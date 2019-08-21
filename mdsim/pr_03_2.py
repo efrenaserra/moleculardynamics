@@ -159,9 +159,11 @@ def BuildNebrList():
     cc : VecI =  None
     m1v: VecI =  None
     m2v: VecI =  None
-    vOff = [               # Mapping from cell vector to list index:
-                           #   (c.z * cells.y + c.y) * cells.x + c.x -> 0
-                           # With cells = VecI(3, 3, 3), list indices are:
+    # Mapping from cell vector to list index:
+    #     (c.z * cells.y + c.y) * cells.x + c.x -> 0
+    #
+    # With cells = VecI(3, 3, 3), list indices are:
+    vOff = [
             VecI(0,0,0),   # (0 * 3 + 0) * 3 + 0 -> 0
             VecI(1,0,0),   # (0 * 3 + 0) * 3 + 1 -> 1
             VecI(1,1,0),   # (0 * 3 + 1) * 3 + 1 -> 4
@@ -177,9 +179,9 @@ def BuildNebrList():
             VecI(0,-1,1),  # (1 * 3 - 1) * 3 + 0 -> 6
             VecI(1,-1,1),  # (1 * 3 - 1) * 3 + 1 -> 7
             ]
-    c     : int = 0
-    j1    : int = 0
-    j2    : int = 0
+    c  : int = 0
+    j1 : int = 0
+    j2 : int = 0
 
     cells    = _mdsim_globals['cells']
     cellList = _mdsim_globals['cellList']
@@ -205,7 +207,7 @@ def BuildNebrList():
         cellList[n] = cellList[c]
         cellList[c] = n
 
-    nebrTabLen : int = 0
+    _mdsim_globals['nebrTabLen'] = 0
     rshift = VecR()
     for m1z in range(cells.z):
         for m1y in range(cells.y):
@@ -233,11 +235,12 @@ def BuildNebrList():
                                 dr -= rshift
                                 rr = vecr_dot(dr, dr)
                                 if rr < rrNebr:
-                                    if nebrTabLen >= nebrTabMax:
+                                    if _mdsim_globals['nebrTabLen'] >= nebrTabMax:
                                         sys.exit(1)
+                                    nebrTabLen = _mdsim_globals['nebrTabLen']
                                     nebrTab[2 * nebrTabLen] = j1
                                     nebrTab[2 * nebrTabLen + 1] = j2
-                                    nebrTabLen += 1
+                                    _mdsim_globals['nebrTabLen'] += 1
                             j2 = cellList[j2]
                         j1 = cellList[j1]
 
@@ -245,37 +248,18 @@ def ComputeForces():
     """Compute the MD forces by evaluating the LJ potential
        using cells subdivisions. The simulation area, i.e., region,
        is divided into a lattice of small cells and the cell edges all exceed
-       RCUT. For this implementation:
+       rcut. For this implementation:
+           rca = La/Lca, where Lca = FLOOR(La/rcut) (a = x, y, z), and La is
+       simulation box length in the a direction (region).
 
-           rca = La/Lca, where Lca = FLOOR(La/RCUT) (a = x, y, z), and La is
-           simulation box length in the a direction (region).
            +---------------------------------------------+
            |          |                       |          |
            |       -1 | 0                Lcx-1|Lcx       |
            |      +---+---+---+---+---+---+---+---+      |
            |      |   |                       |   |      |
            +------+---+---+---+---+---+---+---+---+------+
+
     """
-    cc : VecI =  None
-    m1v: VecI =  None
-    m2v: VecI =  None
-    vOff = [
-            VecI(0,0,0),
-            VecI(1,0,0),
-            VecI(1,1,0),
-            VecI(0,1,0),
-            VecI(-1,1,0),
-            VecI(0,0,1),
-            VecI(1,0,1),
-            VecI(1,1,1),
-            VecI(0,1,1),
-            VecI(-1,1,1),
-            VecI(-1,0,1),
-            VecI(-1,-1,1),
-            VecI(0,-1,1),
-            VecI(1,-1,1),
-            ]
-    c     : int = 0
     j1    : int = 0
     j2    : int = 0
 
@@ -286,25 +270,11 @@ def ComputeForces():
     rri   : float = 0.
     rri3  : float = 0.
 
-    cells    = _mdsim_globals['cells']
-    cellList = _mdsim_globals['cellList']
-    nCells   = cells.vol()
-
-    mol      = _mdsim_globals['mol']
-    nMol     = _mdsim_globals['nMol']
-    region   = _mdsim_globals['region']
-    rrCut    = _mdsim_globals['rCut'] * _mdsim_globals['rCut']
-
-    invWid: VecR = cells / region
-    for n in range(nMol, nMol + nCells):
-        cellList[n] = -1
-
-    for n in range(nMol):
-        rs = mol[n].r + (0.5 * region)
-        cc = VecI(rs.x * invWid.x, rs.y * invWid.y, rs.z * invWid.z)
-        c  = cc.vc_to_list_index(cells) + nMol
-        cellList[n] = cellList[c]
-        cellList[c] = n
+    mol        = _mdsim_globals['mol']
+    nebrTab    = _mdsim_globals['nebrTab']
+    nebrTabLen = _mdsim_globals['nebrTabLen']
+    region     = _mdsim_globals['region']
+    rrCut      = _mdsim_globals['rCut'] * _mdsim_globals['rCut']
 
     for m in mol:
         m.ra_zero()
@@ -313,48 +283,25 @@ def ComputeForces():
     _mdsim_globals['virSum'] = 0.
 
     # Compute cells interactions
-    _mdsim_globals['uSum'] = 0.
-    rshift = VecR()
-    for m1z in range(cells.z):
-        for m1y in range(cells.y):
-            for m1x in range(cells.x):
-                """Vector cell index to which this molecule belongs."""
-                m1v = VecI(m1x,m1y,m1z)
-                """Translate vector cell index, m1v, to cell list index."""
-                m1 = m1v.vc_to_list_index(cells) + nMol
-                for offset in range(N_OFFSET):
-                    """Vector cell relative to m1v."""
-                    m2v = m1v + vOff[offset]
-                    """ Periodic boundary-conditions/shift coordinates."""
-                    rshift.zero()
-                    _VCell_wrap_all(m2v, cells, rshift, region)
-                    """Translate vector cell index, m2v, to cell list index."""
-                    m2 = m2v.vc_to_list_index(cells) + nMol
-                    j1 = cellList[m1]
-                    while j1 >= 0:
-                        j2 = cellList[m2]
-                        while j2 >= 0:
-                            if m1 != m2 or j2 < j1:
-                                a = mol[j1]
-                                b = mol[j2]
-                                dr = a.r_diff(b)
-                                dr -= rshift
-                                rr = vecr_dot(dr, dr)
-                                if rr < rrCut:
-                                    rri = 1. / rr
-                                    rri3 = rri ** 3
-                                    fcVal = 48.0 * rri3 * (rri3 - 0.5) * rri
-                                    uVal = 4. * rri3 * (rri3 - 1.) + 1.
-
-                                    # Molecule at: j1
-                                    a.ra_sadd(fcVal, dr)
-                                    # Molecule at: j2
-                                    b.ra_sadd(-fcVal, dr)
-
-                                    _mdsim_globals['uSum'] += uVal
-                                    _mdsim_globals['virSum'] += fcVal * rr
-                            j2 = cellList[j2]
-                        j1 = cellList[j1]
+    for n in range(nebrTabLen):
+        j1 = nebrTab[2 * n]
+        j2 = nebrTab[2 * n + 1]
+        a = mol[j1]
+        b = mol[j2]
+        dr = a.r_diff(b)
+        dr.wrap(region)
+        rr = vecr_dot(dr, dr)
+        if rr < rrCut:
+            rri = 1. / rr
+            rri3 = rri ** 3
+            fcVal = 48.0 * rri3 * (rri3 - 0.5) * rri
+            uVal = 4. * rri3 * (rri3 - 1.) + 1.
+            # Molecule at: j1
+            a.ra_sadd(fcVal, dr)
+            # Molecule at: j2
+            b.ra_sadd(-fcVal, dr)
+            _mdsim_globals['uSum'] += uVal
+            _mdsim_globals['virSum'] += fcVal * rr
 
 def LeapfrogStep(part: int):
     """

@@ -56,37 +56,74 @@ from _vec_functions import (
         _VCell_wrap_all,
         )
 
-def AccumProps(icode: int):
-    """Accumulate thermodynamics properties.
-    Parameters
-    ----------
-    icount : int,
+def RunMDSim(argv: list):
+    GetNameList(argv[0])
+    PrintNameList(sys.stdout)
+    SetParams()
+    SetupJob()
+    moreCycles = True
+    while moreCycles:
+        SingleStep()
+        if _mdsim_globals['stepCount'] >= _mdsim_globals['stepLimit']:
+            moreCycles = False
+
+def SingleStep():
+    _mdsim_globals['stepCount'] += 1
+    _mdsim_globals['timeNow'] = \
+    _mdsim_globals['stepCount'] * _mdsim_globals['deltaT']
+
+    LeapfrogStep(1)
+    ApplyBoundaryCond()
+    ComputeForces()
+    LeapfrogStep(2)
+    EvalProps()
+    if _mdsim_globals['stepCount'] < _mdsim_globals['stepEquil']:
+        AdjustInitTemp()
+    AccumProps(1)
+    if _mdsim_globals['stepCount'] % _mdsim_globals['stepAvg'] == 0:
+        AccumProps(2)
+        PrintSummary(sys.stdout)
+        AccumProps(0)
+
+def SetupJob():
+    """Setup global variables prior to simulation.
     """
-    if icode == 0:
-        _mdsim_globals['totEnergy'].zero()
-        _mdsim_globals['kinEnergy'].zero()
-        _mdsim_globals['pressure'].zero()
-    elif icode == 1:
-        _mdsim_globals['totEnergy'].accum()
-        _mdsim_globals['kinEnergy'].accum()
-        _mdsim_globals['pressure'].accum()        
-    elif icode == 2:
-        stepAvg = _mdsim_globals['stepAvg']
-        _mdsim_globals['totEnergy'].avg(stepAvg)
-        _mdsim_globals['kinEnergy'].avg(stepAvg)
-        _mdsim_globals['pressure'].avg(stepAvg)
+    AllocArrays()
+    _mdsim_globals['stepCount'] = 0
+    InitCoords()
+    InitVels()
+    InitAccels()
+    AccumProps(0)
+    _mdsim_globals['kinEnInitSum'] = 0.0
 
-def AdjustInitTemp():
-    mol = _mdsim_globals['mol']
-    _mdsim_globals['kinEnInitSum'] += _mdsim_globals['kinEnergy'].val
+def SetParams():
+    density = _mdsim_globals['density']
+    initUcell = _mdsim_globals['initUcell']
 
-    if _mdsim_globals['stepCount'] % _mdsim_globals['stepInitlzTemp'] == 0:
-        _mdsim_globals['kinEnInitSum'] /= _mdsim_globals['stepInitlzTemp']
-        vFac = \
-        _mdsim_globals['velMag'] / math.sqrt(2. * _mdsim_globals['kinEnInitSum'])
-        for m in mol:
-            rv_scale(m, vFac)
-        _mdsim_globals['kinEnInitSum'] = 0.0
+    rCut = math.pow(2., 1./6.)
+    _mdsim_globals['rCut'] = rCut
+    region =\
+    VecR(x=1. / math.pow(density, 1./3.) * initUcell.x, \
+         y=1. / math.pow(density, 1./3.) * initUcell.y, \
+         z=1. / math.pow(density, 1./3.) * initUcell.z)
+    _mdsim_globals['region'] = region
+
+    # The total number of molecules
+    nMol = initUcell.x * initUcell.y * initUcell.z
+    _mdsim_globals['nMol'] = nMol
+
+    _mdsim_globals['velMag'] = \
+    math.sqrt(NDIM * (1. - 1. / nMol) * _mdsim_globals['temperature'])
+
+    _mdsim_globals['cells'] = \
+    VecI(x=(1. / rCut) * region.x, \
+         y=(1. / rCut) * region.y, \
+         z=(1. / rCut) * region.z)
+
+    # Initialize kinEnery, pressure and totEnergy properties
+    _mdsim_globals['kinEnergy'] = Prop()
+    _mdsim_globals['pressure']  = Prop()
+    _mdsim_globals['totEnergy'] = Prop()
 
 def AllocArrays():
     """Allocate array of molecules.
@@ -103,15 +140,6 @@ def AllocArrays():
     nCells = cells.vol()
     _mdsim_globals['cellList'] = \
     np.array([-1 for i in range(nCells + nMol)], dtype=int)
-
-def ApplyBoundaryCond():
-    """Apply periodic boundary conditions.
-    """
-    mol    = _mdsim_globals['mol']
-    region = _mdsim_globals['region']
-
-    for m in mol:
-        m.r_wrap(region)
 
 def ComputeForces():
     """Compute the MD forces by evaluating the LJ potential
@@ -228,79 +256,11 @@ def ComputeForces():
                             j2 = cellList[j2]
                         j1 = cellList[j1]
 
-def EvalProps():
-    """Evaluate thermodynamic properties
-    """
-    density= _mdsim_globals['density']
-    mol    = _mdsim_globals['mol']
-    nMol   = _mdsim_globals['nMol']
-    uSum   = _mdsim_globals['uSum']
-    virSum = _mdsim_globals['virSum']
-
-    vSum = VecR()
-    vvSum : float = 0.
-    for m in mol:
-        rv_add(vSum, m)
-        vvSum += rv_dot(m, m)
-
-    _mdsim_globals['vSum'] = vSum
-    _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol
-    _mdsim_globals['totEnergy'].val = \
-    _mdsim_globals['kinEnergy'].val + uSum / nMol
-    _mdsim_globals['pressure'].val = density * (vvSum + virSum) / (nMol * NDIM)
-
-def EvalVelDist():
-    j : int = 0
-    deltaV : float = 0.0
-    histSum : float = 0.0
-
-    histVel     = _mdsim_globals['histVel']
-    mol         = _mdsim_globals['mol']
-    rangeVel    = _mdsim_globals['rangeVel']
-    sizeHistVel = _mdsim_globals['sizeHistVel']
-
-    deltaV = rangeVel / sizeHistVel
-    for m in mol:
-        j =  int(math.sqrt(rv_dot(m,m)) / deltaV)
-        histVel[min([j, sizeHistVel - 1])] += 1
-
-    _mdsim_globals['countVel'] += 1
-    if _mdsim_globals['countVel'] == _mdsim_globals['limitVel']:
-        histSum = np.sum(histVel)
-        histVel /= histSum
-        _mdsim_globals['hFucnction'] = 0.0
-        for j in range(sizeHistVel):
-            if histVel[j] > 0.0:
-                _mdsim_globals['hFunction'] += histVel[j] * math.log(histVel[j] / ((j+0.5) * deltaV))
-        _mdsim_globals['countVel'] = 0
-
-def GetNameList(fd: str):
-    """
-    Parameters
-    ----------
-    fd : str, the filename
-    """
-    with open(fd, 'r') as f:
-        pattern = re.compile(r'initUcell')
-        for line in f:
-            m = pattern.match(line)
-            if m:
-                k = 'initUcell'
-                line = line[len(k):]
-                (nx,ny,nz) = line.split()
-                # Matrix of molecular unit cells
-                _mdsim_globals[k] = \
-                _namelist_converter[k](nx,ny,nz)
-            else:
-                (k,v) = line.split()
-                _mdsim_globals[k] = \
-                _namelist_converter[k](v)
-
 def LeapfrogStep(part: int):
     """
     Parameters
     ----------
-    part : int, 
+    part : int, the leap frog integration portion
     """
     deltaT : float = _mdsim_globals['deltaT']
     mol            = _mdsim_globals['mol']
@@ -317,32 +277,26 @@ def LeapfrogStep(part: int):
             # Integrate velocities
             m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
 
-def PrintNameList(fd: object):
+def ApplyBoundaryCond():
+    """Apply periodic boundary conditions.
     """
-    Parameters
-    ----------
-    fd : object, 
-    """
-    print(_mdsim_globals, file=fd)
+    mol    = _mdsim_globals['mol']
+    region = _mdsim_globals['region']
 
-def PrintSummary(fd: object):
-    """
-    Parameters
-    ----------
-    fd : object, 
-    """
-    nMol = _mdsim_globals['nMol']
-    totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
-    kinEnergy='%7.4f %7.4f'%_mdsim_globals['kinEnergy'].est()
-    pressure='%7.4f %7.4f'%_mdsim_globals['pressure'].est()
-    print("%5d %8.4f %7.4f %s %s %s"%(\
-          _mdsim_globals['stepCount'],\
-          _mdsim_globals['timeNow'],  \
-          _mdsim_globals['vSum'].vcsum() / nMol,\
-          totEnergy, \
-          kinEnergy, \
-          pressure),  \
-          file=fd)
+    for m in mol:
+        m.r_wrap(region)
+
+def AdjustInitTemp():
+    mol = _mdsim_globals['mol']
+    _mdsim_globals['kinEnInitSum'] += _mdsim_globals['kinEnergy'].val
+
+    if _mdsim_globals['stepCount'] % _mdsim_globals['stepInitlzTemp'] == 0:
+        _mdsim_globals['kinEnInitSum'] /= _mdsim_globals['stepInitlzTemp']
+        vFac = \
+        _mdsim_globals['velMag'] / math.sqrt(2. * _mdsim_globals['kinEnInitSum'])
+        for m in mol:
+            rv_scale(m, vFac)
+        _mdsim_globals['kinEnInitSum'] = 0.0
 
 def InitCoords():
     """Initialize the molecular coordinates
@@ -390,74 +344,95 @@ def InitAccels():
         m.ra = VecR()
         m.ra_zero()
 
-def SetupJob():
-    """Setup global variables prior to simulation.
+def EvalProps():
+    """Evaluate thermodynamic properties
     """
-    AllocArrays()
-    _mdsim_globals['stepCount'] = 0
-    InitCoords()
-    InitVels()
-    InitAccels()
-    AccumProps(0)
-    _mdsim_globals['kinEnInitSum'] = 0.0
+    density= _mdsim_globals['density']
+    mol    = _mdsim_globals['mol']
+    nMol   = _mdsim_globals['nMol']
+    uSum   = _mdsim_globals['uSum']
+    virSum = _mdsim_globals['virSum']
 
-def SetParams():
-    density = _mdsim_globals['density']
-    initUcell = _mdsim_globals['initUcell']
+    vSum = VecR()
+    vvSum : float = 0.
+    for m in mol:
+        rv_add(vSum, m)
+        vvSum += rv_dot(m, m)
 
-    rCut = math.pow(2., 1./6.)
-    _mdsim_globals['rCut'] = rCut
-    region =\
-    VecR(x=1. / math.pow(density, 1./3.) * initUcell.x, \
-         y=1. / math.pow(density, 1./3.) * initUcell.y, \
-         z=1. / math.pow(density, 1./3.) * initUcell.z)
-    _mdsim_globals['region'] = region
+    _mdsim_globals['vSum'] = vSum
+    _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol
+    _mdsim_globals['totEnergy'].val = \
+    _mdsim_globals['kinEnergy'].val + uSum / nMol
+    _mdsim_globals['pressure'].val = density * (vvSum + virSum) / (nMol * NDIM)
 
-    # The total number of molecules
-    nMol = initUcell.x * initUcell.y * initUcell.z
-    _mdsim_globals['nMol'] = nMol
+def AccumProps(icode: int):
+    """Accumulate thermodynamics properties.
+    Parameters
+    ----------
+    icount : int,the accumulate step.
+    """
+    if icode == 0:
+        _mdsim_globals['totEnergy'].zero()
+        _mdsim_globals['kinEnergy'].zero()
+        _mdsim_globals['pressure'].zero()
+    elif icode == 1:
+        _mdsim_globals['totEnergy'].accum()
+        _mdsim_globals['kinEnergy'].accum()
+        _mdsim_globals['pressure'].accum()        
+    elif icode == 2:
+        stepAvg = _mdsim_globals['stepAvg']
+        _mdsim_globals['totEnergy'].avg(stepAvg)
+        _mdsim_globals['kinEnergy'].avg(stepAvg)
+        _mdsim_globals['pressure'].avg(stepAvg)
 
-    _mdsim_globals['velMag'] = \
-    math.sqrt(NDIM * (1. - 1. / nMol) * _mdsim_globals['temperature'])
+def PrintSummary(fd: object):
+    """
+    Parameters
+    ----------
+    fd : object, the output file descriptor.
+    """
+    nMol = _mdsim_globals['nMol']
+    totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
+    kinEnergy='%7.4f %7.4f'%_mdsim_globals['kinEnergy'].est()
+    pressure='%7.4f %7.4f'%_mdsim_globals['pressure'].est()
+    print("%5d %8.4f %7.4f %s %s %s"%(\
+          _mdsim_globals['stepCount'],\
+          _mdsim_globals['timeNow'],  \
+          _mdsim_globals['vSum'].vcsum() / nMol,\
+          totEnergy, \
+          kinEnergy, \
+          pressure),  \
+          file=fd)
 
-    _mdsim_globals['cells'] = \
-    VecI(x=(1. / rCut) * region.x, \
-         y=(1. / rCut) * region.y, \
-         z=(1. / rCut) * region.z)
+def GetNameList(fd: str):
+    """
+    Parameters
+    ----------
+    fd : str, the input filename.
+    """
+    with open(fd, 'r') as f:
+        pattern = re.compile(r'initUcell')
+        for line in f:
+            m = pattern.match(line)
+            if m:
+                k = 'initUcell'
+                line = line[len(k):]
+                (nx,ny,nz) = line.split()
+                # Matrix of molecular unit cells
+                _mdsim_globals[k] = \
+                _namelist_converter[k](nx,ny,nz)
+            else:
+                (k,v) = line.split()
+                _mdsim_globals[k] = \
+                _namelist_converter[k](v)
 
-    # Initialize kinEnery, pressure and totEnergy properties
-    _mdsim_globals['kinEnergy'] = Prop()
-    _mdsim_globals['pressure']  = Prop()
-    _mdsim_globals['totEnergy'] = Prop()
-
-def SingleStep():
-    _mdsim_globals['stepCount'] += 1
-    _mdsim_globals['timeNow'] = \
-    _mdsim_globals['stepCount'] * _mdsim_globals['deltaT']
-
-    LeapfrogStep(1)
-    ApplyBoundaryCond()
-    ComputeForces()
-    LeapfrogStep(2)
-    EvalProps()
-    if _mdsim_globals['stepCount'] < _mdsim_globals['stepEquil']:
-        AdjustInitTemp()
-    AccumProps(1)
-    if _mdsim_globals['stepCount'] % _mdsim_globals['stepAvg'] == 0:
-        AccumProps(2)
-        PrintSummary(sys.stdout)
-        AccumProps(0)
-
-def RunMDSim(argv: list):
-    GetNameList(argv[0])
-    PrintNameList(sys.stdout)
-    SetParams()
-    SetupJob()
-    moreCycles = True
-    while moreCycles:
-        SingleStep()
-        if _mdsim_globals['stepCount'] >= _mdsim_globals['stepLimit']:
-            moreCycles = False
+def PrintNameList(fd: object):
+    """
+    Parameters
+    ----------
+    fd : object, the output file descriptor.
+    """
+    print(_mdsim_globals, file=fd)
 
 if __name__ == "__main__":
     RunMDSim(['pr_03_1.in'])

@@ -39,7 +39,7 @@ def rv_rand(m):
     """Set molecular velocity components to random values.
     Parameters
     ----------
-    m : Mol, the molecular object
+    m : Mol, the molecule object
     """
     s : float = 2.
     x : float = 0.
