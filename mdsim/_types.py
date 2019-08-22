@@ -269,6 +269,11 @@ class Mol(object):
         self.r  = r
         self.rv = rv
         self.ra = ra
+        # Predictor-Corrector support
+        self.ro  = None
+        self.rvo = None
+        self.ra1 = None
+        self.ra2 = None
 
     def __repr__(self):
         return 'Mol({self.r}, {self.rv}, {self.ra})'.format(self=self)

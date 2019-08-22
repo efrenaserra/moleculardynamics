@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Created on Tue Jun 25 14:12:58 2019
+"""
+Created on Wed Aug 21 11:32:35 2019
 
-/* [[pr_03_1 - cells and leapfrog]] */
+/* [[pr_03_3 - cells and PC]] */
 
 /*********************************************************************
 
@@ -71,11 +72,11 @@ def SingleStep():
     _mdsim_globals['stepCount'] += 1
     _mdsim_globals['timeNow'] = \
     _mdsim_globals['stepCount'] * _mdsim_globals['deltaT']
-
-    LeapfrogStep(1)
+    PredictorStep()
     ApplyBoundaryCond()
     ComputeForces()
-    LeapfrogStep(2)
+    CorrectorStep()
+    ApplyBoundaryCond()
     EvalProps()
     if _mdsim_globals['stepCount'] < _mdsim_globals['stepEquil']:
         AdjustInitTemp()
@@ -97,8 +98,8 @@ def SetupJob():
     _mdsim_globals['kinEnInitSum'] = 0.0
 
 def SetParams():
-    density = _mdsim_globals['density']
-    initUcell = _mdsim_globals['initUcell']
+    density    = _mdsim_globals['density']
+    initUcell  = _mdsim_globals['initUcell']
 
     rCut = math.pow(2., 1./6.)
     _mdsim_globals['rCut'] = rCut
@@ -128,12 +129,11 @@ def SetParams():
 def AllocArrays():
     """Allocate array of molecules.
     """
-    nMol = _mdsim_globals['nMol']
+    nMol       = _mdsim_globals['nMol']
 
     # The molecules
-    mol = \
+    _mdsim_globals['mol'] = \
     np.array([Mol() for i in range(nMol)], dtype=Mol)
-    _mdsim_globals['mol'] = mol
 
     # The cells
     cells : VecI = _mdsim_globals['cells']
@@ -145,10 +145,10 @@ def ComputeForces():
     """Compute the MD forces by evaluating the LJ potential
        using cells subdivisions. The simulation area, i.e., region,
        is divided into a lattice of small cells and the cell edges all exceed
-       RCUT. For this implementation:
+       rcut. For this implementation:
+           rca = La/Lca, where Lca = FLOOR(La/rcut) (a = x, y, z), and La is
+       simulation box length in the a direction (region).
 
-           rca = La/Lca, where Lca = FLOOR(La/RCUT) (a = x, y, z), and La is
-           simulation box length in the a direction (region).
            +---------------------------------------------+
            |          |                       |          |
            |       -1 | 0                Lcx-1|Lcx       |
@@ -164,20 +164,20 @@ def ComputeForces():
     #
     # With cells = VecI(3, 3, 3), list indices are:
     vOff = [
-            VecI(0,0,0),   # (0 * 3 + 0) * 3 + 0 -> 0
-            VecI(1,0,0),   # (0 * 3 + 0) * 3 + 1 -> 1
-            VecI(1,1,0),   # (0 * 3 + 1) * 3 + 1 -> 4
-            VecI(0,1,0),   # (0 * 3 + 1) * 3 + 0 -> 3
-            VecI(-1,1,0),  # (0 * 3 + 1) * 3 - 1 -> 2
-            VecI(0,0,1),   # (1 * 3 + 0) * 3 + 0 -> 9
-            VecI(1,0,1),   # (1 * 3 + 0) * 3 + 1 -> 10
-            VecI(1,1,1),   # (1 * 3 + 1) * 3 + 1 -> 13
-            VecI(0,1,1),   # (1 * 3 + 1) * 3 + 0 -> 12
-            VecI(-1,1,1),  # (1 * 3 + 1) * 3 - 1 -> 11
-            VecI(-1,0,1),  # (1 * 3 + 0) * 3 - 1 -> 8
-            VecI(-1,-1,1), # (1 * 3 - 1) * 3 - 1 -> 5
-            VecI(0,-1,1),  # (1 * 3 - 1) * 3 + 0 -> 6
-            VecI(1,-1,1),  # (1 * 3 - 1) * 3 + 1 -> 7
+            VecI(0,0,0),
+            VecI(1,0,0),
+            VecI(1,1,0),
+            VecI(0,1,0),
+            VecI(-1,1,0),
+            VecI(0,0,1),
+            VecI(1,0,1),
+            VecI(1,1,1),
+            VecI(0,1,1),
+            VecI(-1,1,1),
+            VecI(-1,0,1),
+            VecI(-1,-1,1),
+            VecI(0,-1,1),
+            VecI(1,-1,1),
             ]
     c     : int = 0
     j1    : int = 0
@@ -209,8 +209,6 @@ def ComputeForces():
         c  = cc.vc_to_list_index(cells) + nMol
         cellList[n] = cellList[c]
         cellList[c] = n
-
-    print(cellList)
 
     for m in mol:
         m.ra_zero()
@@ -262,27 +260,37 @@ def ComputeForces():
                             j2 = cellList[j2]
                         j1 = cellList[j1]
 
-def LeapfrogStep(part: int):
+def PredictorStep():
     """
     Parameters
     ----------
-    part : int, the leap frog integration portion
+    part : int, 
     """
-    deltaT : float = _mdsim_globals['deltaT']
-    mol            = _mdsim_globals['mol']
+    cr  = [19., -10., 3.]
+    cv  = [27., -22., 7.]
+    div = 24.
+    deltaT = _mdsim_globals['deltaT']
+    mol    = _mdsim_globals['mol']
 
-    if part == 1:
-        for i, m in enumerate(mol):
-            # Integrate velocities
-            m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
+    wr : float = (deltaT * deltaT) / div
+    wv : float = deltaT / div
+    for m in mol:
+        PR(m)
+        PRV(m)
+        m.ra2 = m.ra1
+        m.ra1 = m.ra
 
-            # Integrate coordinates
-            m.update_coordinates(leapfrog_update_coordinates, deltaT)
-    else:
-        for i, m in enumerate(mol):
-            # Integrate velocities
-            m.update_velocities(leapfrog_update_velocities, 0.5 * deltaT)
+def CorrectorStep():
+    cr  = [3., 10., -1.]
+    cv  = [7., 6., -1.]
+    div = 24.
 
+    wr : float = (deltaT * deltaT) / div
+    wv : float = deltaT / div
+    for m in mol:
+        CR(m)
+        CRV(m)
+    
 def ApplyBoundaryCond():
     """Apply periodic boundary conditions.
     """
@@ -338,6 +346,7 @@ def InitVels():
         rv_add(vSum, m)
 
     _mdsim_globals['vSum'] = vSum
+
     # Scale molecular velocities
     for m in mol:
         rv_sadd(m, -1. / nMol, vSum)
@@ -353,17 +362,25 @@ def InitAccels():
 def EvalProps():
     """Evaluate thermodynamic properties
     """
-    density= _mdsim_globals['density']
-    mol    = _mdsim_globals['mol']
-    nMol   = _mdsim_globals['nMol']
-    uSum   = _mdsim_globals['uSum']
-    virSum = _mdsim_globals['virSum']
+    density = _mdsim_globals['density']
+    deltaT  = _mdsim_globals['deltaT']
+    mol     = _mdsim_globals['mol']
+    nMol    = _mdsim_globals['nMol']
+    uSum    = _mdsim_globals['uSum']
+    virSum  = _mdsim_globals['virSum']
 
     vSum = VecR()
+    vvMax : float = 0.
     vvSum : float = 0.
     for m in mol:
         rv_add(vSum, m)
-        vvSum += rv_dot(m, m)
+        vv = rv_dot(m, m)
+        vvSum += vv
+        vvMax = max([vvMax, vv])
+
+    _mdsim_globals['dispHi'] += math.sqrt(vvMax) * deltaT
+    if _mdsim_globals['dispHi'] > 0.5 * _mdsim_globals['rNebrShell']:
+        _mdsim_globals['nebrNow'] = True
 
     _mdsim_globals['vSum'] = vSum
     _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol
@@ -375,7 +392,7 @@ def AccumProps(icode: int):
     """Accumulate thermodynamics properties.
     Parameters
     ----------
-    icount : int,the accumulate step.
+    icount : int,
     """
     if icode == 0:
         _mdsim_globals['totEnergy'].zero()
@@ -384,7 +401,7 @@ def AccumProps(icode: int):
     elif icode == 1:
         _mdsim_globals['totEnergy'].accum()
         _mdsim_globals['kinEnergy'].accum()
-        _mdsim_globals['pressure'].accum()        
+        _mdsim_globals['pressure'].accum()
     elif icode == 2:
         stepAvg = _mdsim_globals['stepAvg']
         _mdsim_globals['totEnergy'].avg(stepAvg)
@@ -395,7 +412,7 @@ def PrintSummary(fd: object):
     """
     Parameters
     ----------
-    fd : object, the output file descriptor.
+    fd : object, 
     """
     nMol = _mdsim_globals['nMol']
     totEnergy='%7.4f %7.4f'%_mdsim_globals['totEnergy'].est()
@@ -414,7 +431,7 @@ def GetNameList(fd: str):
     """
     Parameters
     ----------
-    fd : str, the input filename.
+    fd : str, the filename
     """
     with open(fd, 'r') as f:
         pattern = re.compile(r'initUcell')
@@ -436,9 +453,9 @@ def PrintNameList(fd: object):
     """
     Parameters
     ----------
-    fd : object, the output file descriptor.
+    fd : object, the output file descriptor
     """
     print(_mdsim_globals, file=fd)
 
 if __name__ == "__main__":
-    RunMDSim(['pr_03_1.in'])
+    RunMDSim(['pr_03_3.in'])

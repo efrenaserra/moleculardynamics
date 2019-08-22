@@ -159,8 +159,8 @@ def BuildNebrList():
     cc : VecI =  None
     m1v: VecI =  None
     m2v: VecI =  None
-    # Mapping from cell vector to list index:
-    #     (c.z * cells.y + c.y) * cells.x + c.x -> 0
+    # Mapping from cell vector to list index (column-major order):
+    #     (c.z * cells.y + c.y) * cells.x + c.x
     #
     # With cells = VecI(3, 3, 3), list indices are:
     vOff = [
