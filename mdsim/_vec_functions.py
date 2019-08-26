@@ -140,7 +140,7 @@ def vecr_wrap(vecr,region):
     if vecr.z >= 0.5 * region.z:
         vecr.z -= region.z
     elif vecr.z < -0.5 * region.z:
-        vecr.z += region.y
+        vecr.z += region.z
 
     return vecr
 
@@ -185,3 +185,4 @@ def ra_sadd(m, s, v):
     """
     m.ra.x += (s * v.x)
     m.ra.y += (s * v.y)
+    m.ra.z += (s * v.z)

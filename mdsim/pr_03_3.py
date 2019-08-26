@@ -305,7 +305,9 @@ def PredictorStep():
         m.rvo.z = m.rv.z
         # mol[n].rvo = mol.[n].rv
 
+        print('afore PR', m)
         PR(m, wr, cr, deltaT)
+        print('after PR', m)
         PRV(m, wv, cv, deltaT)
 
         m.ra2.x = m.ra1.x

@@ -304,6 +304,7 @@ class Mol(object):
         """
         self.ra.x += (s * v.x)
         self.ra.y += (s * v.y)
+        self.ra.z += (s * v.z)
 
         return self
 
