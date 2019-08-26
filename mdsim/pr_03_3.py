@@ -39,11 +39,6 @@ from _types   import (
         Mol, Prop, VecI, VecR
         )
 
-from _leapfrog_functions import (
-        leapfrog_update_coordinates,
-        leapfrog_update_velocities,
-        )
-
 from _3d_rand import (
         rv_rand
         )
@@ -164,20 +159,21 @@ def ComputeForces():
     #
     # With cells = VecI(3, 3, 3), list indices are:
     vOff = [
-            VecI(0,0,0),
-            VecI(1,0,0),
-            VecI(1,1,0),
-            VecI(0,1,0),
-            VecI(-1,1,0),
-            VecI(0,0,1),
-            VecI(1,0,1),
-            VecI(1,1,1),
-            VecI(0,1,1),
-            VecI(-1,1,1),
-            VecI(-1,0,1),
-            VecI(-1,-1,1),
-            VecI(0,-1,1),
-            VecI(1,-1,1),
+            VecI(0,0,0),   # (0 * 3 + 0) * 3 + 0 -> 0
+            VecI(1,0,0),   # (0 * 3 + 0) * 3 + 1 -> 1
+            VecI(1,1,0),   # (0 * 3 + 1) * 3 + 1 -> 4
+            VecI(0,1,0),   # (0 * 3 + 1) * 3 + 0 -> 3
+            VecI(-1,1,0),  # (0 * 3 + 1) * 3 - 1 -> 2
+            VecI(0,0,1),   # (1 * 3 + 0) * 3 + 0 -> 9
+            VecI(1,0,1),   # (1 * 3 + 0) * 3 + 1 -> 10
+            VecI(1,1,1),   # (1 * 3 + 1) * 3 + 1 -> 13
+            VecI(0,1,1),   # (1 * 3 + 1) * 3 + 0 -> 12
+            VecI(-1,1,1),  # (1 * 3 + 1) * 3 - 1 -> 11
+            VecI(-1,0,1),  # (1 * 3 + 0) * 3 - 1 -> 8
+            VecI(-1,-1,1), # (1 * 3 - 1) * 3 - 1 -> 5
+            VecI(0,-1,1),  # (1 * 3 - 1) * 3 + 0 -> 6
+            VecI(1,-1,1),  # (1 * 3 - 1) * 3 + 1 -> 7
+
             ]
     c     : int = 0
     j1    : int = 0
@@ -206,6 +202,7 @@ def ComputeForces():
     for n in range(nMol):
         rs = mol[n].r + (0.5 * region)
         cc = VecI(rs.x * invWid.x, rs.y * invWid.y, rs.z * invWid.z)
+        print(cc)
         c  = cc.vc_to_list_index(cells) + nMol
         cellList[n] = cellList[c]
         cellList[c] = n
@@ -217,8 +214,7 @@ def ComputeForces():
     _mdsim_globals['virSum'] = 0.
 
     # Compute cells interactions
-    _mdsim_globals['uSum'] = 0.
-    rshift = VecR()
+    shift = VecR()
     for m1z in range(cells.z):
         for m1y in range(cells.y):
             for m1x in range(cells.x):
@@ -230,8 +226,8 @@ def ComputeForces():
                     """Vector cell relative to m1v."""
                     m2v = m1v + vOff[offset]
                     """ Periodic boundary-conditions/shift coordinates."""
-                    rshift.zero()
-                    _VCell_wrap_all(m2v, cells, rshift, region)
+                    shift.zero()
+                    _VCell_wrap_all(m2v, cells, shift, region)
                     """Translate vector cell index, m2v, to cell list index."""
                     m2 = m2v.vc_to_list_index(cells) + nMol
                     j1 = cellList[m1]
@@ -242,7 +238,7 @@ def ComputeForces():
                                 a = mol[j1]
                                 b = mol[j2]
                                 dr = a.r_diff(b)
-                                dr -= rshift
+                                dr -= shift
                                 rr = vecr_dot(dr, dr)
                                 if rr < rrCut:
                                     rri = 1. / rr
@@ -260,6 +256,29 @@ def ComputeForces():
                             j2 = cellList[j2]
                         j1 = cellList[j1]
 
+
+def PCR4(r, ro, v, a, a1, a2, wr, cr, deltaT):
+    r.x = ro.x + deltaT * v.x + wr * (cr[0] * a.x + cr[1] * a1.x + cr[2] * a2.x)
+    r.y = ro.y + deltaT * v.y + wr * (cr[0] * a.y + cr[1] * a1.y + cr[2] * a2.y)
+    r.z = ro.z + deltaT * v.z + wr * (cr[0] * a.z + cr[1] * a1.z + cr[2] * a2.z)
+
+def PCV4(r, ro, v, a, a1, a2, wv, cv, deltaT):
+    v.x = (r.x - ro.x) / deltaT + wv * (cv[0] * a.x + cv[1] * a1.x + cv[2] * a2.x)
+    v.y = (r.y - ro.y) / deltaT + wv * (cv[0] * a.y + cv[1] * a1.y + cv[2] * a2.y)
+    v.z = (r.z - ro.z) / deltaT + wv * (cv[0] * a.z + cv[1] * a1.z + cv[2] * a2.z)
+
+def PR(m: Mol, wr, cr, deltaT):
+        PCR4(m.r, m.r, m.rv, m.ra, m.ra1, m.ra2, wr, cr, deltaT)
+
+def PRV(m: Mol, wv, cv, deltaT):
+        PCV4(m.r, m.ro, m.rv, m.ra, m.ra1, m.ra2, wv, cv, deltaT)
+
+def CR(m: Mol, wr, cr, deltaT):
+        PCR4(m.r, m.ro, m.rvo, m.ra, m.ra1, m.ra2, wr, cr, deltaT)
+
+def CRV(m: Mol, wv, cv, deltaT):
+        PCV4(m.r, m.ro, m.rv, m.ra, m.ra1, m.ra2, wv, cv, deltaT)
+
 def PredictorStep():
     """
     Parameters
@@ -268,28 +287,50 @@ def PredictorStep():
     """
     cr  = [19., -10., 3.]
     cv  = [27., -22., 7.]
-    div = 24.
+    div : float = 24.
+
     deltaT = _mdsim_globals['deltaT']
-    mol    = _mdsim_globals['mol']
 
     wr : float = (deltaT * deltaT) / div
     wv : float = deltaT / div
+
+    mol = _mdsim_globals['mol']
     for m in mol:
-        PR(m)
-        PRV(m)
-        m.ra2 = m.ra1
-        m.ra1 = m.ra
+        m.ro.x = m.r.x
+        m.ro.y = m.r.y
+        m.ro.z = m.r.z
+        # mol[n].ro = mol.[n].r
+        m.rvo.x = m.rv.x
+        m.rvo.y = m.rv.y
+        m.rvo.z = m.rv.z
+        # mol[n].rvo = mol.[n].rv
+
+        PR(m, wr, cr, deltaT)
+        PRV(m, wv, cv, deltaT)
+
+        m.ra2.x = m.ra1.x
+        m.ra2.y = m.ra1.y
+        m.ra2.z = m.ra1.z
+        # mol[n].ra2 = mol.[n].ra1
+        m.ra1.x = m.ra.x
+        m.ra1.y = m.ra.y
+        m.ra1.z = m.ra.z
+        # mol[n].ra1 = mol.[n].ra
 
 def CorrectorStep():
-    cr  = [3., 10., -1.]
-    cv  = [7., 6., -1.]
-    div = 24.
+    cr  : float = [3., 10., -1.]
+    cv  : float = [7., 6., -1.]
+    div : float = 24.
+
+    deltaT = _mdsim_globals['deltaT']
 
     wr : float = (deltaT * deltaT) / div
     wv : float = deltaT / div
+
+    mol = _mdsim_globals['mol']
     for m in mol:
-        CR(m)
-        CRV(m)
+        CR(m, wr, cr, deltaT)
+        CRV(m, wv, cv, deltaT)
     
 def ApplyBoundaryCond():
     """Apply periodic boundary conditions.
@@ -329,6 +370,7 @@ def InitCoords():
                 c *= gap
                 c += (-0.5 * region)
                 mol[n].r = c
+                mol[n].ro = VecR()
                 n += 1
 
 def InitVels():
@@ -341,6 +383,7 @@ def InitVels():
     vSum = VecR(x=0., y=0., z=0.)
     for m in mol:
         m.rv = VecR()
+        m.rvo = VecR()
         rv_rand(m)
         rv_scale(m, velMag)
         rv_add(vSum, m)
@@ -358,12 +401,13 @@ def InitAccels():
     for m in mol:
         m.ra = VecR()
         m.ra_zero()
+        m.ra1 = VecR()
+        m.ra2 = VecR()
 
 def EvalProps():
     """Evaluate thermodynamic properties
     """
     density = _mdsim_globals['density']
-    deltaT  = _mdsim_globals['deltaT']
     mol     = _mdsim_globals['mol']
     nMol    = _mdsim_globals['nMol']
     uSum    = _mdsim_globals['uSum']
@@ -377,10 +421,6 @@ def EvalProps():
         vv = rv_dot(m, m)
         vvSum += vv
         vvMax = max([vvMax, vv])
-
-    _mdsim_globals['dispHi'] += math.sqrt(vvMax) * deltaT
-    if _mdsim_globals['dispHi'] > 0.5 * _mdsim_globals['rNebrShell']:
-        _mdsim_globals['nebrNow'] = True
 
     _mdsim_globals['vSum'] = vSum
     _mdsim_globals['kinEnergy'].val = 0.5 * vvSum / nMol

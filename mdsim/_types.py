@@ -269,6 +269,7 @@ class Mol(object):
         self.r  = r
         self.rv = rv
         self.ra = ra
+
         # Predictor-Corrector support
         self.ro  = None
         self.rvo = None
