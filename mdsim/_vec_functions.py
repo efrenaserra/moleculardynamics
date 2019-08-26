@@ -35,6 +35,7 @@ __ALL__ = [
         'rv_add',
         'rv_sadd',
         'rv_scale',
+        'vecr_copy',
         'vecr_dot',
         'vecr_sadd',
         ]
@@ -107,8 +108,19 @@ def vecr_sadd(a: VecR, s: float, v: VecR):
 
     return a
 
+def vecr_copy(a_to: VecR, b_from: VecR) -> None:
+    """Copy VecR objects component-wise.
+    Parameters
+    ----------
+    a_to : VecR, molecule to copy to.
+    b_from : VecR, molecule to copy from.
+    """
+    a_to.x = b_from.x
+    a_to.y = b_from.y
+    a_to.z = b_from.z
+
 def vecr_dot(a: VecR, b: VecR):
-    """Divide two VecR objects component-wise.
+    """Dot product of vectors.
     Parameters
     ----------
     a : VecR, a molecule position
