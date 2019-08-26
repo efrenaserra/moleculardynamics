@@ -37,7 +37,6 @@ __ALL__ = [
         'rv_scale',
         'vecr_dot',
         'vecr_sadd',
-        'vecr_wrap',
         ]
 
 def r_wrap(m: Mol, region: VecR):
@@ -116,33 +115,6 @@ def vecr_dot(a: VecR, b: VecR):
     b : VecR, another molecule position
     """
     return (a.x * b.x + a.y * b.y + a.z * b.z)
-
-def vecr_wrap(vecr,region):
-    """
-    Parameters
-    ----------
-    m : Mol, 
-    region : VecR, 
-    """
-    # Wrap the x-coordinate
-    if vecr.x >= 0.5 * region.x:
-        vecr.x -= region.x
-    elif vecr.x < -0.5 * region.x:
-        vecr.x += region.x
-
-    # Wrap the y-coordinate
-    if vecr.y >= 0.5 * region.y:
-        vecr.y -= region.y
-    elif vecr.y < -0.5 * region.y:
-        vecr.y += region.y
-
-    # Wrap the z-coordinate
-    if vecr.z >= 0.5 * region.z:
-        vecr.z -= region.z
-    elif vecr.z < -0.5 * region.z:
-        vecr.z += region.z
-
-    return vecr
 
 def rv_diff(a,b):
     """Return molecular velocity difference.
