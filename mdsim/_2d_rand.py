@@ -25,7 +25,7 @@ Created on Wed Aug 14 15:57:55 2019
 
 **********************************************************************/
 
-@author: serra
+@author: Efren Antonio Serra (Read)
 """
 
 import math, random

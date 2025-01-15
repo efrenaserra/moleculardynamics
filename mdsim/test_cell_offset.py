@@ -2,7 +2,7 @@
 """
 Created on Fri Aug 16 21:32:12 2019
 
-@author: serra
+@author: Efren Antonio Serra (Read)
 """
 class _Cells(object):
     def __init__(self, x: int=0, y: int=0):
