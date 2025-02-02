@@ -37,7 +37,7 @@ from _types   import (
         Mol, Prop, VecR
         )
 
-from _leapfrog_functions import (
+from mdsim.integration import (
         leapfrog_update_coordinates,\
         leapfrog_update_velocities, \
         )

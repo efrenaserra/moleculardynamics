@@ -28,24 +28,19 @@ Created on Mon Jul  1 10:53:02 2019
 @author: Efren A. Serra
 """
 
-from _types import VecI, VecR, Mol
+from ._types import VecI, VecR, Mol
 
-__ALL__ = [
-        'ra_sadd',
-        'rv_add',
-        'rv_sadd',
-        'rv_scale',
-        'vecr_copy',
-        'vecr_dot',
-        'vecr_sadd',
-        ]
+__all__ = [
+    'ra_sadd', 'rv_add', 'rv_sadd', 'rv_scale',
+    'vecr_copy', 'vecr_dot', 'vecr_sadd'
+    ]
 
-def r_wrap(m: Mol, region: VecR):
+def r_wrap(m: Mol, region: VecR) -> None:
     """
     Parameters
     ----------
-    m : Mol, 
-    region : VecR, 
+    m : Mol,
+    region : VecR
     """
     # Wrap the x-coordinate
     if m.r.x >= 0.5 * region.x:
@@ -65,7 +60,7 @@ def r_wrap(m: Mol, region: VecR):
     elif m.r.z < -0.5 * region.z:
         m.r.z += region.z
 
-def _VCell_wrap_all(vc: VecI, cells: VecI, rs: VecR, region: VecR):
+def _VCell_wrap_all(vc: VecI, cells: VecI, rs: VecR, region: VecR) -> None:
     # Wrap the x-coordinate
     if vc.x >= cells.x:
         vc.x = 0
@@ -90,7 +85,7 @@ def _VCell_wrap_all(vc: VecI, cells: VecI, rs: VecR, region: VecR):
         vc.z = cells.z - 1
         rs.z = - region.z
 
-def veci_mul(a: VecR, b: VecR):
+def veci_mul(a: VecR, b: VecR) -> VecI:
     """Multiply two VecR objects component-wise.
     Parameters
     ----------
@@ -99,7 +94,7 @@ def veci_mul(a: VecR, b: VecR):
     """
     return VecI(int(a.x * b.x), int(a.y * b.y), int(a.z * b.z))
 
-def vecr_sadd(a: VecR, s: float, v: VecR):
+def vecr_sadd(a: VecR, s: float, v: VecR) -> VecR:
     """Scale molecular velocity components.
     """
     a.x += (s * v.x)
@@ -123,29 +118,29 @@ def vecr_dot(a: VecR, b: VecR):
     """Dot product of vectors.
     Parameters
     ----------
-    a : VecR, a molecule position
-    b : VecR, another molecule position
+    a : VecR, a molecule's position
+    b : VecR, b molecule's position
     """
     return (a.x * b.x + a.y * b.y + a.z * b.z)
 
-def rv_diff(a,b):
+def rv_diff(a,b) -> VecR:
     """Return molecular velocity difference.
     """
     return VecR(a.rv.x - b.rv.x, a.rv.y - b.rv.y, a.rv.z - b.rv.z)
 
-def ra_diff(a,b):
+def ra_diff(a,b) -> VecR:
     """Return molecular acceleration difference.
     """
     return VecR(a.ra.x - b.ra.x, a.ra.y - b.ra.y, a.ra.z - b.ra.z)
 
-def rv_scale(m, s):
+def rv_scale(m, s) -> None:
     """Scale molecular velocity components.
     """
     m.rv.x *= s
     m.rv.y *= s
     m.rv.z *= s
 
-def rv_add(v, m):
+def rv_add(v, m) -> None:
     """Accumulate molecular velocity components.
     """
     v.x += m.rv.x
@@ -157,14 +152,14 @@ def rv_dot(a, b):
     """
     return (a.rv.x * b.rv.x + a.rv.y * b.rv.y + a.rv.z * b.rv.z)
 
-def rv_sadd(m, s, v):
+def rv_sadd(m, s, v) -> None:
     """Scale molecular velocity components.
     """
     m.rv.x += (s * v.x)
     m.rv.y += (s * v.y)
     m.rv.z += (s * v.z)
 
-def ra_sadd(m, s, v):
+def ra_sadd(m, s, v) -> None:
     """Scale molecular acceleration components.
     """
     m.ra.x += (s * v.x)

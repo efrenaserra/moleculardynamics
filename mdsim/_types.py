@@ -25,16 +25,13 @@ Created on Wed Jun 26 21:14:48 2019
 
 **********************************************************************/
 
-@author: Efren A. Serra
+@author: Efren Antonio Serra
 """
 import math
 
-__ALL__ = [
-        'Mol' ,
-        'Prop',
-        'VecI',
-        'VecR',
-        ]
+__all__ = ['Mol', 'Prop', 'VecI', 'VecR']
+
+type Point = tuple[int, int, int]
 
 class Prop(object):
     """
@@ -43,9 +40,9 @@ class Prop(object):
 
     Attributes
     ----------
-    val  : float
+    val : float
         the property value
-    sum  : float
+    sum : float
         the sum of the property
     sum2 : float
         the sum squared of the cummulative property
@@ -94,7 +91,7 @@ class Prop(object):
     def est(self):
         """Returns a tuple representing the sum and sum squared of the property.
         """
-        return self.sum, self.sum2
+        return (self.sum, self.sum2)
 
     def __repr__(self):
         """Returns a formatted string representation (val, sum, sum2) of the property.
@@ -108,9 +105,9 @@ class VecI(object):
 
     Attributes
     ----------
-    x  : float
+    x  : int
         the property value
-    y  : float
+    y  : int
         the sum of the property
     """
 
