@@ -1,7 +1,7 @@
 """Core module.
 """
-from .container import MDContainer
+from .universe import MDUniverse
 
 __all__ = [
-    "MDContainer",
+    "MDUniverse",
 ]

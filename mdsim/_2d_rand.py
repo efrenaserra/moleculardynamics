@@ -28,7 +28,7 @@ Created on Wed Aug 14 15:57:55 2019
 @author: Efren Antonio Serra (Read)
 """
 
-from ._types import Mol
+from .core.types import Mol
 import math, random
 
 __all__ = ['rv_rand']

@@ -1,18 +1,27 @@
-from __future__ import decorations
+from __future__ import annotations
+from typing import TypedDict
 
 import re
-from typing import Dict
 
-class MDContainer(object):
+class MDUniverse(object):
     """
-    The MD simulation container class.
+    The MD simulation simple system class.
     """
     __slots__ = ()
 
     def __init__(self):
         """
         """
-        self._variable_registry: Dict = Dict()
+        self._variable_registry = self.MDRegistry({})
+
+    class MDRegistry(TypedDict):
+        delta_t: float
+        density: float
+        init_U_cell: tuple[int, int] # The unit cell
+        step_avg: int
+        step_equil: int
+        step_limit: int
+        temperature: float
 
     def __getattr__(self, name):
         """
@@ -35,14 +44,14 @@ class MDContainer(object):
             for line in f:
                 m = pattern.match(line)
                 if not m:
-                    (k,v) = line.split()
+                    (k, v) = line.split()
                     self._variable_registry[k] = _NAMELIST_CONVERTER[k](v)
                 else:
                     k = 'init_U_cell'
                     line = line[len(k):]
                     (nx, ny) = line.split()
                     # Matrix of molecular unit cells
-                    self._mdsim_var_registry[k] = _NAMELIST_CONVERTER[k](nx, ny)
+                    self._variable_registry[k] = _NAMELIST_CONVERTER[k](nx, ny)
 
     def single_step(self):
         """

@@ -28,7 +28,7 @@ Created on Mon Jul  1 10:53:02 2019
 @author: Efren A. Serra
 """
 
-from ._types import VecI, VecR, Mol
+from .core.types import VecI, VecR, Mol
 
 __all__ = [
     'ra_sadd', 'rv_add', 'rv_sadd', 'rv_scale',

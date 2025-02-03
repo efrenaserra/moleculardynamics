@@ -27,7 +27,7 @@ Created on Mon Jul  1 11:04:01 2019
 
 @author: Efren A. Serra
 """
-from _types import VecR
+from mdsim.core.types import VecR
 
 __ALL__ = [
         'leapfrog_update_coordindates',

@@ -33,8 +33,8 @@ NDIM : int = 2
 import math, numpy as np, re, sys
 import matplotlib.pyplot as plt
 
-from _globals import _mdsim_globals, _namelist_converter
-from _types   import (
+from mdsim.core._globals import _mdsim_globals, _namelist_converter
+from mdsim.core.types   import (
         Mol, Prop, VecR
         )
 

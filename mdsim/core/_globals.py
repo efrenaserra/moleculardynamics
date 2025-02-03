@@ -29,7 +29,7 @@ Created on Tue Jun 25 14:31:17 2019
 
 @author: Efren A. Serra
 """
-from _types import VecI
+from mdsim.core.types import VecI
 # Disallow reloading this module so as to prevent re-initializing these global
 # variables
 if '_is_loaded' in globals():
