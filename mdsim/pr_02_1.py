@@ -32,7 +32,7 @@
 NDIM : int = 2
 import math, numpy as np, re, sys
 
-from mdsim.core._globals import _mdsim_globals, _namelist_converter
+from mdsim.core.globals import _mdsim_globals, _namelist_converter
 from mdsim.core.types   import (
         Mol, Prop, VecR
         )

@@ -29,7 +29,10 @@ Created on Tue Jun 25 14:31:17 2019
 
 @author: Efren A. Serra
 """
-from mdsim.core.types import VecI
+from __future__ import annotations
+from typing import Callable, TypedDict
+
+from .types import IVec
 # Disallow reloading this module so as to prevent re-initializing these global
 # variables
 if '_is_loaded' in globals():
@@ -39,21 +42,38 @@ _is_loaded = True
 
 """Global variables
 """
-_mdsim_globals = {}
-_namelist_converter = {
-    'deltaT'         : lambda x: float(x),
+#_mdsim_globals = {}
+class ConverterDict(TypedDict):
+    delta_t: Callable[[float], float]
+    density: Callable[[float], float]
+    init_U_cell: Callable[[float, float, float], IVec]
+    limit_vel: Callable[[float], int]
+    nbr_tabfac: Callable[[float], int]
+    rand_seed: Callable[[float], int]
+    range_vel: Callable[[float], float]
+    rnbr_shell: Callable[[float], float]
+    sizeHist_vel: Callable[[float], int]
+    step_avg: Callable[[float], int]
+    step_equil: Callable[[float], int]
+    setp_itemp: Callable[[float], int]
+    step_limit: Callable[[float], int]
+    step_vel: Callable[[float], int]
+    temperature: Callable[[float], float]
+
+_namelist_converter: ConverterDict = {
+    'delta_t'        : lambda x: float(x),
     'density'        : lambda x: float(x),
-    'initUcell'      : lambda x,y,z: VecI(int(x),int(y),int(z)),
-    'limitVel'       : lambda x: int(x),
-    'nebrTabFac'     : lambda x: int(x),
-    'randSeed'       : lambda x: int(x),
-    'rangeVel'       : lambda x: float(x),
-    'rNebrShell'     : lambda x: float(x),
-    'sizeHistVel'    : lambda x: int(x),
-    'stepAvg'        : lambda x: int(x),
-    'stepEquil'      : lambda x: int(x),
+    'init_U_cell'    : lambda x,y,z: IVec(x,y,z),
+    'limit_vel'      : lambda x: int(x),
+    'nbr_TabFac'     : lambda x: int(x),
+    'rand_seed'      : lambda x: int(x),
+    'range_vel'      : lambda x: float(x),
+    'rNebr_shell'    : lambda x: float(x),
+    'sizeHist_vel'   : lambda x: int(x),
+    'step_avg'       : lambda x: int(x),
+    'step_equil'     : lambda x: int(x),
     'stepInitlzTemp' : lambda x: int(x),
-    'stepLimit'      : lambda x: int(x),
-    'stepVel'        : lambda x: int(x),
+    'step_limit'     : lambda x: int(x),
+    'step_vel'       : lambda x: int(x),
     'temperature'    : lambda x: float(x),
     }

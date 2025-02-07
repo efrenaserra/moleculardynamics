@@ -27,11 +27,35 @@ Created on Wed Jun 26 21:14:48 2019
 
 @author: Efren Antonio Serra
 """
+from __future__ import annotations
+
+from typing import Generic, TypeAlias, TypeVar
 import math
 
-__all__ = ['Mol', 'Prop', 'VecI', 'VecR']
+T = TypeVar('T')
+class Point(Generic[T]):
+    def __init__(self, x: T, y: T, z: T) -> None:
+        self.x = x
+        self.y = y
+        self.z = z
 
-type Point = tuple[int, int, int]
+    def __repr__(self) -> str:
+        return f'Point({self.x}, {self.y}, {self.z})'
+
+    def __add__(self, other: Point) -> Point:
+        return Point(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    def __sub__(self, other: Point) -> Point:
+        return Point(self.x - other.x, self.y - other.y, self.z - other.z)
+
+class IVec(Point):
+    def __init__(self, x: int, y: int, z: int):
+        super().__init__(x, y, z)
+
+class RVec(Point):
+#class RVec(Point[float]):
+    def __init__(self, x: float, y: float, z: float):
+        super().__init__(x, y, z)
 
 class Prop(object):
     """
@@ -121,7 +145,7 @@ class VecI(object):
         """
         return VecI((self.x - other.x), (self.y - other.y), (self.z - other.z))
 
-    def truediv(a, b: 'VecR') -> 'VecR':
+    def truediv(a, b: VecR) -> VecR:
         "Same as a / b."
         return VecR(a.x / b.x, a.y / b.y, a.z / b.z)
 
@@ -149,7 +173,7 @@ class VecR(object):
     system of reference during an MD simulation.
 
     Attributes
-    ----------
+    ==========
     x  : float
         the x coordinate
     y  : float
@@ -163,15 +187,15 @@ class VecR(object):
         self.z = z
 
     def __add__(self, rhs):
-        """Return relative vector difference."""
+        """Return the vector sum."""
         return VecR(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
 
     __radd__ = __add__
 
-    def __iadd__(self, other) -> 'VecR':
+    def __iadd__(self, other) -> VecR:
         return VecR(self.x + other.x, self.y + other.y, self.z + other.z)
 
-    def truediv(a, b) -> 'VecR':
+    def truediv(a, b) -> VecR:
         "Same as a / b."
         return VecR(a.x / b.x, a.y / b.y, a.z / b.z)
 
@@ -200,7 +224,7 @@ class VecR(object):
     def wrap(self, region):
         """
         Parameters
-        ----------
+        ==========
         region : VecR, 
         """
         # Wrap the x-coordinate

@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import TypedDict
 
+from typing import TypedDict
+from .globals import _namelist_converter
 import re
 
 class MDUniverse(object):
@@ -45,13 +46,13 @@ class MDUniverse(object):
                 m = pattern.match(line)
                 if not m:
                     (k, v) = line.split()
-                    self._variable_registry[k] = _NAMELIST_CONVERTER[k](v)
+                    self._variable_registry[k] = _namelist_converter[k](v)
                 else:
                     k = 'init_U_cell'
                     line = line[len(k):]
                     (nx, ny) = line.split()
                     # Matrix of molecular unit cells
-                    self._variable_registry[k] = _NAMELIST_CONVERTER[k](nx, ny)
+                    self._variable_registry[k] = _namelist_converter[k](nx, ny)
 
     def single_step(self):
         """
