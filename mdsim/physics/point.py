@@ -1,16 +1,14 @@
 """A Cartesian-Coordinate point class.
 """
-class Point:
-    def __init__(self, dimensions: list[int]):
-        self.x =
-        self.y =
-        self.z =
+from __future__ import annotations
+from typing import TypeVar
 
-    def coords(self):
-        return tuple(self.x, self.y, self.z)
-    
-    def __sub__(self, other):
-        return calc.distance(self, other)
-    
-    def __rsub__(self, other):
-        self.__sub__(other)
+from ..core import Point
+
+T = TypeVar('Point')
+
+def sum[T](v1: T, v2: T) -> T:
+    return Point(v1.x + v2.x, v1.x + v2.x, v1.z + v2.z)
+
+def vec_sum[T](v1: T, v2: T) -> T:
+    return v1 + v2

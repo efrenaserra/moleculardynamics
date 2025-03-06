@@ -162,7 +162,7 @@ class VecI(object):
     def vol(self) -> int:
         return self.x * self.y * self.z
 
-    def vc_to_list_index(self, cells: 'VecI') -> int:
+    def vc_to_list_index(self, cells: IVec) -> int:
         """Translate vector cell index to scalar index using column-major order.
         """
         return (self.z * cells.y + self.y) * cells.x + self.x
