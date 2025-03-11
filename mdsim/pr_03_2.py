@@ -47,7 +47,7 @@ from _3d_rand import (
         rv_rand
         )
 
-from _vec_functions import (
+from mdsim.physics.vector_funcs import (
         rv_add,
         rv_dot,
         rv_sadd,

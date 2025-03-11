@@ -42,7 +42,7 @@ from mdsim.integration import (
         leapfrog_update_velocities, \
         )
 
-from _vec_functions import (
+from mdsim.physics.vector_funcs import (
         rv_add,   \
         rv_dot,   \
         rv_rand,  \

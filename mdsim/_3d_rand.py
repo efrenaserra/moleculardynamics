@@ -25,9 +25,10 @@ Created on Wed Aug 14 15:51:08 2019
 
 **********************************************************************/
 
-@author: serra
+@author: Efren Antonio Serra
 """
 
+from .core.types import Molecule
 import math, random
 
 __ALL__ = [
@@ -35,11 +36,11 @@ __ALL__ = [
         ]
 
 
-def rv_rand(m):
+def rv_rand(m: Molecule):
     """Set molecular velocity components to random values.
     Parameters
     ----------
-    m : Mol, the molecule object
+    m : Molecule, the molecule object
     """
     s : float = 2.
     x : float = 0.
@@ -47,9 +48,9 @@ def rv_rand(m):
     while s > 1.:
         x = 2. * random.random() - 1
         y = 2. * random.random() - 1
-        s = x * x + y * y
+        s = x*x + y*y
 
     m.rv.z = 1. - 2. * s
     s = 2. * math.sqrt(1. - s)
-    m.rv.x = s * x
-    m.rv.y = s * y
+    m.rv.x = s*x
+    m.rv.y = s*y

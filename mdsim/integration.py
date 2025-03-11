@@ -27,21 +27,21 @@ Created on Mon Jul  1 11:04:01 2019
 
 @author: Efren A. Serra
 """
-from mdsim.core.types import VecR
+from .core.types import RVec
 
-__ALL__ = [
+__all__ = [
         'leapfrog_update_coordindates',
         'leapfrog_update_velocities',
         ]
 
-def leapfrog_update_coordinates(r: VecR, scale: float, rv: VecR):
-    """Integrate the coordinates using the Leapfrog scheme.
-    """
+def leapfrog_update_coordinates(r: RVec, scale: float, rv: RVec):
+    """Integrate the coordinates using the Leapfrog scheme."""
     r.x += (scale * rv.x)
     r.y += (scale * rv.y)
+    r.z += (scale * rv.z)
 
-def leapfrog_update_velocities(rv: VecR, scale: float, ra: VecR):
-    """Integrate the coordinates using the Leapfrog scheme.
-    """
+def leapfrog_update_velocities(rv: RVec, scale: float, ra: RVec):
+    """Integrate the coordinates using the Leapfrog scheme."""
     rv.x += (scale * ra.x)
     rv.y += (scale * ra.y)
+    rv.z += (scale * ra.z)

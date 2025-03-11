@@ -3,7 +3,6 @@
 
 __all__ = [
     'physics',
-
     ]
 
 import logging
@@ -11,6 +10,7 @@ from typing import Dict
 
 logger = logging.getLogger("mdsim.__init__")
 from . import physics
+from .core.types import IVec
 
 # Dictionary/Registry of Global Variables
 _MDSIM_GLOBALS: Dict = {}
@@ -18,7 +18,7 @@ _MDSIM_GLOBALS: Dict = {}
 _NAMELIST_CONVERTER: Dict = {
     'delta_t'        : lambda x: float(x),
     'density'        : lambda x: float(x),
-    'init_u_cell'    : lambda x,y,z: VecI(int(x),int(y),int(z)),
+    'init_u_cell'    : lambda x,y,z: IVec(int(x),int(y),int(z)),
     'limit_vel'      : lambda x: int(x),
     'nebrTabFac'     : lambda x: int(x),
     'randSeed'       : lambda x: int(x),

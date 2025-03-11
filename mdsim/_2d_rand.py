@@ -28,13 +28,13 @@ Created on Wed Aug 14 15:57:55 2019
 @author: Efren Antonio Serra (Read)
 """
 
-from .core.types import Mol
 import math, random
+from .core.types import Molecule
 
 __all__ = ['rv_rand']
 
 
-def rv_rand(m: Mol) -> None:
+def rv_rand(m: Molecule) -> None:
     """Set molecular velocity components to random values.
     Parameters
     ----------
